@@ -28,6 +28,7 @@ export async function POST(request: Request) {
         naam: data.naam,
         telefoon: data.telefoon,
         email: data.email || null,
+        adres: data.adres || null,
         gemeente: data.gemeente,
         probleem: data.probleem,
         urgentie: data.urgentie,

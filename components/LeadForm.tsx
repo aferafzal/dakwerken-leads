@@ -1,8 +1,10 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { setOptions, importLibrary } from '@googlemaps/js-api-loader'
 import { leadSchema, type LeadFormData, probleemLabels } from '@/lib/validations'
 import { steden } from '@/lib/steden'
 
@@ -12,6 +14,7 @@ interface LeadFormProps {
 
 export default function LeadForm({ defaultGemeente }: LeadFormProps) {
   const router = useRouter()
+  const adresInputRef = useRef<HTMLInputElement>(null)
 
   const {
     register,
@@ -29,6 +32,35 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
   })
 
   const urgentie = watch('urgentie')
+
+  // Google Maps Places Autocomplete
+  useEffect(() => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+    if (!apiKey || !adresInputRef.current) return
+
+    setOptions({ key: apiKey, v: 'weekly' })
+    let autocomplete: google.maps.places.Autocomplete | undefined
+
+    importLibrary('places').then((lib) => {
+      const { Autocomplete } = lib as google.maps.PlacesLibrary
+      if (!adresInputRef.current) return
+      autocomplete = new Autocomplete(adresInputRef.current, {
+        componentRestrictions: { country: 'be' },
+        fields: ['formatted_address'],
+        types: ['address'],
+      })
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete!.getPlace()
+        if (place.formatted_address) {
+          setValue('adres', place.formatted_address, { shouldValidate: true })
+        }
+      })
+    }).catch(() => { /* Maps niet beschikbaar — gewoon tekstveld */ })
+
+    return () => {
+      if (autocomplete) google.maps.event.clearInstanceListeners(autocomplete)
+    }
+  }, [setValue])
 
   async function onSubmit(data: LeadFormData) {
     const res = await fetch('/api/leads', {
@@ -72,6 +104,26 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
           {...register('naam')}
         />
         {errors.naam && <p className="mt-1 text-xs text-red-600">{errors.naam.message}</p>}
+      </div>
+
+      {/* Adres */}
+      <div>
+        <label htmlFor="adres" className="block text-sm font-medium text-gray-700 mb-1">
+          Adres van uw woning
+        </label>
+        <input
+          id="adres"
+          type="text"
+          autoComplete="street-address"
+          placeholder="Straat, huisnummer, gemeente"
+          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-100"
+          {...register('adres')}
+          ref={(el) => {
+            register('adres').ref(el)
+            ;(adresInputRef as { current: HTMLInputElement | null }).current = el
+          }}
+        />
+        {errors.adres && <p className="mt-1 text-xs text-red-600">{errors.adres.message}</p>}
       </div>
 
       {/* Telefoon */}

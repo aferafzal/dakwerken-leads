@@ -7,6 +7,7 @@ export const leadSchema = z.object({
     .min(9, 'Telefoonnummer is ongeldig')
     .regex(/^[0-9+\s()-]{9,15}$/, 'Voer een geldig telefoonnummer in'),
   email: z.string().email('Ongeldig e-mailadres').optional().or(z.literal('')),
+  adres: z.string().optional(),
   gemeente: z.string().min(2, 'Gemeente is verplicht'),
   probleem: z.enum(
     ['daklekkage', 'isolatie', 'renovatie', 'nieuw_dak', 'anders'] as const,
