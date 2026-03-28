@@ -18,8 +18,8 @@ export default function BedanktPage() {
           Uw aanvraag is ontvangen!
         </h1>
         <p className="mb-3 text-lg text-gray-700">
-          Bedankt voor uw aanvraag. We nemen <strong>binnen 2 uur</strong> telefonisch contact
-          met u op (op werkdagen).
+          Bedankt! We starten de digitale dakmeting van uw woning en contacteren u
+          <strong> binnen 2 uur</strong> met een gepersonaliseerde offerte (op werkdagen).
         </p>
         <p className="mb-8 text-gray-500">
           Heeft u een dringende daklekkage? Bel ons dan direct.
