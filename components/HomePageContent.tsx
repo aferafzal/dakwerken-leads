@@ -197,23 +197,32 @@ function HoeWerktHetSection() {
             ))}
           </div>
 
-          {/* Video placeholder — wordt vervangen door Remotion explainer */}
+          {/* Remotion explainer video — render via scripts/render-explainer.ts */}
           <motion.div
             initial={{ opacity: 0, scale: 0.96 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className="relative aspect-video rounded-2xl bg-navy overflow-hidden flex items-center justify-center cursor-pointer group"
+            className="relative aspect-video rounded-2xl overflow-hidden bg-navy"
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-navy-light/80 to-navy/90" />
-            <div className="relative z-10 flex flex-col items-center gap-4 px-8 text-center">
-              <div className="w-20 h-20 rounded-full bg-amber/90 flex items-center justify-center group-hover:bg-amber transition-colors shadow-lg">
-                <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+              poster="/explainer-poster.jpg"
+            >
+              <source src="/explainer.mp4" type="video/mp4" />
+            </video>
+            {/* Fallback als video nog niet gerenderd is */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-navy/90 pointer-events-none">
+              <div className="w-16 h-16 rounded-full bg-amber/90 flex items-center justify-center mb-3">
+                <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z" />
                 </svg>
               </div>
-              <p className="text-warm-white font-semibold">Bekijk hoe digitale dakmeting werkt</p>
-              <p className="text-warm-white/50 text-xs">Uitlegvideo binnenkort beschikbaar</p>
+              <p className="text-warm-white font-semibold text-sm">Uitlegvideo binnenkort beschikbaar</p>
             </div>
           </motion.div>
         </div>
