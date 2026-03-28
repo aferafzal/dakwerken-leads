@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import Link from 'next/link'
 import { Phone } from 'lucide-react'
 import WhatsAppButton from '@/components/WhatsAppButton'
+import ChatWidget from '@/components/ChatWidget'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -105,6 +106,7 @@ export default function RootLayout({
           phone={OWNER_WHATSAPP}
           message="Hallo, ik heb een vraag over dakwerken in Oost-Vlaanderen."
         />
+        <ChatWidget />
       </body>
     </html>
   )
