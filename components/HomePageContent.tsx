@@ -28,7 +28,7 @@ function HeroSection() {
         <source src="/hero.mp4" type="video/mp4" />
       </video>
 
-      {/* Donkere overlay zodat tekst leesbaar is */}
+      {/* Donkere overlay */}
       <div className="absolute inset-0 bg-navy/75" />
 
       <div className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-0">
@@ -40,22 +40,23 @@ function HeroSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7 }}
           >
+            <div className="inline-flex items-center gap-2 bg-amber/20 border border-amber/40 text-amber rounded-full px-4 py-1.5 text-sm font-semibold mb-6">
+              🛰️ Nu met digitale 3D dakmeting
+            </div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-warm-white leading-tight tracking-tight">
               Dakwerken in
               <br />
-              Oost-Vlaanderen
+              <span className="text-amber">Oost-Vlaanderen</span>
             </h1>
-            <p className="mt-4 text-xl sm:text-2xl font-bold text-amber">
-              Gratis offerte binnen 2 uur
-            </p>
-            <p className="mt-4 text-lg text-warm-white/70 max-w-lg">
-              Gecertificeerde vakmannen. Snelle service. 10 jaar garantie.
+            <p className="mt-5 text-lg text-warm-white/80 max-w-lg leading-relaxed">
+              Gecertificeerde vakmannen. Van daklekkage tot volledige renovatie —
+              gratis offerte binnen 2 uur op basis van een nauwkeurige 3D-dakmeting.
             </p>
 
             {/* Twee CTAs */}
             <div className="mt-8 flex flex-col sm:flex-row gap-4">
               <a href="#offerte" className="btn-primary text-center">
-                Vraag een offerte aan →
+                Vraag gratis offerte aan →
               </a>
               <a
                 href={whatsappUrl}
@@ -72,7 +73,7 @@ function HeroSection() {
               <span className="trust-badge">✓ 500+ projecten</span>
               <span className="trust-badge">⏱ Reactie in 2u</span>
               <span className="trust-badge">🛡 10j garantie</span>
-              <span className="trust-badge">★ 4.9/5</span>
+              <span className="trust-badge">★ 4.9/5 Google</span>
             </div>
           </motion.div>
 
@@ -94,16 +95,16 @@ function HeroSection() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// STATS BAR
+// TRUST BAR
 // ─────────────────────────────────────────────────────────────
 const stats = [
   { value: '500+', label: 'Afgewerkte projecten' },
   { value: '10 jaar', label: 'Garantie' },
   { value: '2 uur', label: 'Reactietijd' },
-  { value: '4.9★', label: 'Klantbeoordeling' },
+  { value: '4.9★', label: 'Google-beoordeling' },
 ]
 
-function StatsBar() {
+function TrustBar() {
   return (
     <section className="bg-slate-dark py-12 sm:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -133,7 +134,158 @@ function StatsBar() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// SERVICES SECTION
+// HOE WERKT HET — 3 stappen + video placeholder
+// ─────────────────────────────────────────────────────────────
+const stappen = [
+  {
+    nr: '01',
+    icon: '📍',
+    titel: 'Adres invoeren',
+    tekst: 'Vul het adres van uw woning in. Onze tool localiseert uw dak automatisch via satellietdata.',
+  },
+  {
+    nr: '02',
+    icon: '🛰️',
+    titel: 'Digitale dakmeting',
+    tekst: 'Binnen seconden genereert het systeem een nauwkeurig 3D-model met alle afmetingen van uw dak.',
+  },
+  {
+    nr: '03',
+    icon: '📄',
+    titel: 'Offerte ontvangen',
+    tekst: 'U ontvangt een professionele offerte op maat, gebaseerd op de exacte dakoppervlakte en helling.',
+  },
+]
+
+function HoeWerktHetSection() {
+  return (
+    <section className="section-padding bg-background">
+      <div className="max-w-7xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-14"
+        >
+          <h2 className="section-heading">Hoe werkt de digitale dakmeting?</h2>
+          <p className="section-subheading mx-auto mt-4">
+            Van adres tot offerte — in minder dan 2 uur, zonder bezoek ter plaatse.
+          </p>
+        </motion.div>
+
+        <div className="grid md:grid-cols-2 gap-12 items-center">
+          {/* Stappen */}
+          <div className="space-y-8">
+            {stappen.map((stap, i) => (
+              <motion.div
+                key={stap.nr}
+                initial={{ opacity: 0, x: -24 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.15 }}
+                className="flex gap-5"
+              >
+                <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-navy flex flex-col items-center justify-center">
+                  <span className="text-amber text-xs font-bold leading-none">{stap.nr}</span>
+                  <span className="text-xl leading-none mt-0.5">{stap.icon}</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-foreground mb-1">{stap.titel}</h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">{stap.tekst}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Video placeholder — wordt vervangen door Remotion explainer */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="relative aspect-video rounded-2xl bg-navy overflow-hidden flex items-center justify-center cursor-pointer group"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-navy-light/80 to-navy/90" />
+            <div className="relative z-10 flex flex-col items-center gap-4 px-8 text-center">
+              <div className="w-20 h-20 rounded-full bg-amber/90 flex items-center justify-center group-hover:bg-amber transition-colors shadow-lg">
+                <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+              <p className="text-warm-white font-semibold">Bekijk hoe digitale dakmeting werkt</p>
+              <p className="text-warm-white/50 text-xs">Uitlegvideo binnenkort beschikbaar</p>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// BEFORE / AFTER SECTION
+// ─────────────────────────────────────────────────────────────
+const pairs = [
+  { before: 'https://picsum.photos/seed/roof1/800/600', after: 'https://picsum.photos/seed/roof4/800/600', label: 'Gent' },
+  { before: 'https://picsum.photos/seed/roof2/800/600', after: 'https://picsum.photos/seed/roof5/800/600', label: 'Aalst' },
+  { before: 'https://picsum.photos/seed/roof3/800/600', after: 'https://picsum.photos/seed/roof6/800/600', label: 'Sint-Niklaas' },
+]
+
+function BeforeAfterSection() {
+  return (
+    <section className="section-padding bg-secondary/50">
+      <div className="max-w-7xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-12 sm:mb-16"
+        >
+          <h2 className="section-heading">Het verschil dat wij maken</h2>
+          <p className="section-subheading mx-auto mt-4">
+            Echte projecten in uw buurt — voor en na onze interventie.
+          </p>
+        </motion.div>
+
+        <div className="grid md:grid-cols-3 gap-8">
+          {pairs.map((pair, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: i * 0.15 }}
+              className="space-y-2"
+            >
+              <div className="grid grid-cols-2 gap-2 rounded-2xl overflow-hidden">
+                <div className="relative aspect-[4/3]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={pair.before} alt={`Voor renovatie ${pair.label}`} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-foreground/40" />
+                  <span className="absolute top-3 left-3 bg-destructive text-destructive-foreground text-xs font-bold px-3 py-1 rounded-full uppercase">
+                    Voor
+                  </span>
+                </div>
+                <div className="relative aspect-[4/3]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={pair.after} alt={`Na renovatie ${pair.label}`} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-emerald-500/10" />
+                  <span className="absolute top-3 left-3 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-full uppercase">
+                    Na
+                  </span>
+                </div>
+              </div>
+              <p className="text-center text-sm font-medium text-muted-foreground">{pair.label}</p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// DIENSTEN SECTION
 // ─────────────────────────────────────────────────────────────
 const services = [
   { icon: '🔧', title: 'Daklekkage', desc: 'Snel en duurzaam hersteld, ook in het weekend.', color: 'bg-amber/10 border-amber' },
@@ -142,7 +294,7 @@ const services = [
   { icon: '🏗️', title: 'Nieuw dak', desc: 'Van plat tot hellend dak, op maat.', color: 'bg-emerald-500/10 border-emerald-500' },
 ]
 
-function ServicesSection() {
+function DienstenSection() {
   return (
     <section className="section-padding bg-background">
       <div className="max-w-7xl mx-auto">
@@ -170,118 +322,12 @@ function ServicesSection() {
               </div>
               <h3 className="text-lg font-bold text-foreground mb-2">{s.title}</h3>
               <p className="text-muted-foreground text-sm mb-4">{s.desc}</p>
-              <span className="text-amber font-semibold text-sm group-hover:underline cursor-pointer">
-                Meer info →
-              </span>
+              <a href="#offerte" className="text-amber font-semibold text-sm group-hover:underline">
+                Offerte aanvragen →
+              </a>
             </motion.div>
           ))}
         </div>
-      </div>
-    </section>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
-// BEFORE / AFTER SECTION
-// ─────────────────────────────────────────────────────────────
-const pairs = [
-  { before: 'https://picsum.photos/seed/roof1/800/600', after: 'https://picsum.photos/seed/roof4/800/600' },
-  { before: 'https://picsum.photos/seed/roof2/800/600', after: 'https://picsum.photos/seed/roof5/800/600' },
-  { before: 'https://picsum.photos/seed/roof3/800/600', after: 'https://picsum.photos/seed/roof6/800/600' },
-]
-
-function BeforeAfterSection() {
-  return (
-    <section className="section-padding bg-secondary/50">
-      <div className="max-w-7xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-center mb-12 sm:mb-16"
-        >
-          <h2 className="section-heading">Het verschil dat wij maken</h2>
-          <p className="section-subheading mx-auto mt-4">
-            Vervang de voorbeeldfotos door uw eigen voor/na beelden van afgeronde projecten.
-          </p>
-        </motion.div>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          {pairs.map((pair, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.15 }}
-              className="grid grid-cols-2 gap-2 rounded-2xl overflow-hidden"
-            >
-              {/* Voor */}
-              <div className="relative aspect-[4/3]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={pair.before} alt="Voor renovatie" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-foreground/40" />
-                <span className="absolute top-3 left-3 bg-destructive text-destructive-foreground text-xs font-bold px-3 py-1 rounded-full uppercase">
-                  Voor
-                </span>
-              </div>
-              {/* Na */}
-              <div className="relative aspect-[4/3]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={pair.after} alt="Na renovatie" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-emerald-500/10" />
-                <span className="absolute top-3 left-3 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-full uppercase">
-                  Na
-                </span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        <div className="text-center mt-10">
-          <button className="btn-primary">Bekijk al onze projecten →</button>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
-// VIDEO SECTION (placeholder voor Remotion promofilm)
-// ─────────────────────────────────────────────────────────────
-function VideoSection() {
-  return (
-    <section className="section-padding bg-background">
-      <div className="max-w-5xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-center mb-10"
-        >
-          <h2 className="section-heading">Bekijk hoe wij werken</h2>
-          <p className="section-subheading mx-auto mt-4">
-            Onze vakmannen in actie — van inspectie tot perfect dak.
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="relative aspect-video rounded-2xl bg-navy overflow-hidden flex items-center justify-center cursor-pointer group"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-navy-light/80 to-navy/90" />
-          <div className="relative z-10 flex flex-col items-center gap-4">
-            <div className="w-20 h-20 rounded-full bg-amber/90 flex items-center justify-center group-hover:bg-amber transition-colors shadow-lg">
-              <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </div>
-            <p className="text-warm-white/60 text-sm font-medium">Video binnenkort beschikbaar</p>
-          </div>
-        </motion.div>
       </div>
     </section>
   )
@@ -341,7 +387,82 @@ function TestimonialsSection() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// SERVICE AREA
+// WAAROM WIJ — USPs
+// ─────────────────────────────────────────────────────────────
+const usps = [
+  {
+    icon: '📍',
+    titel: 'Lokale vakmannen',
+    tekst: 'Wij zijn actief in heel Oost-Vlaanderen en kennen de regio door en door.',
+  },
+  {
+    icon: '⚡',
+    titel: 'Razendsnelle service',
+    tekst: 'Bij daklekkage of noodgeval zijn wij er binnen de dag. Geen wachttijden.',
+  },
+  {
+    icon: '💰',
+    titel: 'Eerlijke prijs',
+    tekst: 'Transparante offertes zonder verborgen kosten. U weet altijd wat u betaalt.',
+  },
+  {
+    icon: '🛰️',
+    titel: 'AI-precisie',
+    tekst: 'Dankzij digitale dakmeting is onze offerte exact — geen verrassingen achteraf.',
+  },
+  {
+    icon: '🏆',
+    titel: '10 jaar garantie',
+    tekst: 'Wij staan 10 jaar garant voor ons werk. Dat geeft u gemoedsrust.',
+  },
+  {
+    icon: '🌿',
+    titel: 'Energiepremies',
+    tekst: 'Wij begeleiden u bij het aanvragen van isolatie- en renovatiepremies.',
+  },
+]
+
+function WaaromWijSection() {
+  return (
+    <section className="section-padding bg-navy">
+      <div className="max-w-7xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="text-center mb-14"
+        >
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-warm-white">
+            Waarom kiezen voor ons?
+          </h2>
+          <p className="mt-4 text-lg text-warm-white/60 max-w-2xl mx-auto">
+            Al meer dan 500 gezinnen in Oost-Vlaanderen kozen voor onze aanpak.
+          </p>
+        </motion.div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {usps.map((usp, i) => (
+            <motion.div
+              key={usp.titel}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: i * 0.08 }}
+              className="bg-navy-light rounded-2xl p-6 border border-white/10 hover:border-amber/40 transition-colors"
+            >
+              <div className="text-3xl mb-4">{usp.icon}</div>
+              <h3 className="text-lg font-bold text-warm-white mb-2">{usp.titel}</h3>
+              <p className="text-warm-white/60 text-sm leading-relaxed">{usp.tekst}</p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// SERVICE AREA — steden pills
 // ─────────────────────────────────────────────────────────────
 function ServiceAreaSection() {
   return (
@@ -386,10 +507,78 @@ function ServiceAreaSection() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// FINAL CTA
+// OFFERTE SECTIE — LeadForm naast CTA tekst
 // ─────────────────────────────────────────────────────────────
-function FinalCTA() {
+function OfferteSection() {
   const phone = process.env.NEXT_PUBLIC_OWNER_PHONE ?? '0470 00 00 00'
+
+  return (
+    <section className="section-padding bg-secondary/50" id="offerte-sectie">
+      <div className="max-w-7xl mx-auto">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-start">
+
+          {/* Links: CTA tekst */}
+          <motion.div
+            initial={{ opacity: 0, x: -24 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2 className="section-heading">
+              Klaar voor een nauwkeurige offerte?
+            </h2>
+            <p className="mt-4 text-lg text-muted-foreground leading-relaxed">
+              Vul het formulier in en ontvang binnen 2 uur een gepersonaliseerde offerte
+              op basis van de digitale 3D-dakmeting van uw woning.
+            </p>
+
+            <ul className="mt-8 space-y-4">
+              {[
+                'Gratis en vrijblijvend',
+                'Geen bezoek ter plaatse nodig',
+                'Exacte meting op basis van satellietdata',
+                'Offerte inclusief energiepremies',
+              ].map((item) => (
+                <li key={item} className="flex items-center gap-3 text-foreground">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber/20 flex items-center justify-center">
+                    <svg className="w-3.5 h-3.5 text-amber" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+
+            <div className="mt-10 p-5 bg-navy rounded-2xl">
+              <p className="text-warm-white/70 text-sm mb-1">Liever direct bellen?</p>
+              <a href={`tel:${phone}`} className="text-2xl font-black text-amber hover:text-amber-hover transition-colors">
+                📞 {phone}
+              </a>
+            </div>
+          </motion.div>
+
+          {/* Rechts: formulier */}
+          <motion.div
+            initial={{ opacity: 0, x: 24 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <LeadForm />
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// CTA FOOTER
+// ─────────────────────────────────────────────────────────────
+function CTAFooter() {
+  const phone = process.env.NEXT_PUBLIC_OWNER_PHONE ?? '0470 00 00 00'
+  const whatsapp = process.env.NEXT_PUBLIC_OWNER_WHATSAPP ?? '32470000000'
 
   return (
     <section className="relative bg-navy py-20 sm:py-28 overflow-hidden">
@@ -402,14 +591,25 @@ function FinalCTA() {
           transition={{ duration: 0.6 }}
         >
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-warm-white leading-tight">
-            Klaar om uw dak te laten herstellen?
+            Dakprobleem? Wij lossen het op.
           </h2>
+          <p className="mt-4 text-warm-white/60 text-lg max-w-xl mx-auto">
+            Reactie binnen 2 uur, gratis offerte, geen verplichtingen.
+          </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
             <a href="#offerte" className="btn-primary text-center">
               Gratis offerte aanvragen →
             </a>
             <a href={`tel:${phone}`} className="btn-secondary text-center">
               📞 Direct bellen
+            </a>
+            <a
+              href={`https://wa.me/${whatsapp}?text=Hallo%2C%20ik%20heb%20een%20dakprobleem.`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary text-center"
+            >
+              💬 WhatsApp
             </a>
           </div>
         </motion.div>
@@ -425,13 +625,15 @@ export default function HomePageContent() {
   return (
     <>
       <HeroSection />
-      <StatsBar />
-      <ServicesSection />
+      <TrustBar />
+      <HoeWerktHetSection />
       <BeforeAfterSection />
-      <VideoSection />
+      <DienstenSection />
       <TestimonialsSection />
+      <WaaromWijSection />
       <ServiceAreaSection />
-      <FinalCTA />
+      <OfferteSection />
+      <CTAFooter />
     </>
   )
 }
