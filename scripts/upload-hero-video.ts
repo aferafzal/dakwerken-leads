@@ -29,7 +29,7 @@ async function main() {
     process.exit(1)
   }
 
-  const filePath = join(process.cwd(), 'public', 'hero.mp4')
+  const filePath = join(process.cwd(), 'public', 'hero-compressed.mp4')
   const file = readFileSync(filePath)
 
   console.log('⬆️  Bezig met uploaden van hero.mp4 naar Vercel Blob...')
@@ -38,6 +38,7 @@ async function main() {
     access: 'public',
     token,
     contentType: 'video/mp4',
+    allowOverwrite: true,
   })
 
   console.log('\n✅ Upload geslaagd!')

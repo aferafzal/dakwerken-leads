@@ -136,7 +136,7 @@ export default function HomePageContent() {
         <section ref={setRef(0)} className={styles.section} id="hero">
           {/* ── CHANGED: video background ── */}
           <video
-            autoPlay loop muted playsInline
+            autoPlay loop muted playsInline preload="auto"
             className="absolute inset-0 w-full h-full object-cover"
           >
             <source src={process.env.NEXT_PUBLIC_HERO_VIDEO_URL ?? '/hero.mp4'} type="video/mp4" />
