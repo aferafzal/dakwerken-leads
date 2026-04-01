@@ -32,6 +32,7 @@ function WhatsAppIcon({ className, style }: { className?: string; style?: React.
 // ─────────────────────────────────────────────────────────────
 export default function HomePageContent() {
   const [formOpen,        setFormOpen]        = useState(false)
+  const [videoOpen,       setVideoOpen]       = useState(false)
   const [activeSection,   setActiveSection]   = useState(0)
   const [visibleSections, setVisibleSections] = useState<Set<number>>(new Set([0]))
   const [mounted,         setMounted]         = useState(false)
@@ -280,14 +281,47 @@ export default function HomePageContent() {
                 ))}
               </div>
 
-              {/* Video */}
-              <div className="relative aspect-video rounded-2xl overflow-hidden"
-                style={{ background: 'hsl(222 47% 11%)' }}>
-                <video autoPlay loop muted playsInline
-                  className="w-full h-full object-cover">
+              {/* Video — klik om volledig scherm te openen */}
+              <div
+                className="relative aspect-video rounded-2xl overflow-hidden cursor-pointer group"
+                style={{ background: 'hsl(222 47% 11%)' }}
+                onClick={() => setVideoOpen(true)}
+              >
+                <video autoPlay loop muted playsInline className="w-full h-full object-cover">
                   <source src="/explainer.mp4" type="video/mp4" />
                 </video>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
+                </div>
               </div>
+
+              {/* Fullscreen video modal */}
+              {videoOpen && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+                  onClick={() => setVideoOpen(false)}
+                >
+                  <button
+                    className="absolute top-4 right-4 text-white/70 hover:text-white p-2"
+                    onClick={() => setVideoOpen(false)}
+                  >
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                  </button>
+                  <video
+                    autoPlay controls playsInline
+                    className="w-full max-w-4xl max-h-[90vh] rounded-xl"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <source src="/explainer.mp4" type="video/mp4" />
+                  </video>
+                </div>
+              )}
             </div>
           </div>
         </section>
