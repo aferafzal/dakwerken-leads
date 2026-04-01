@@ -139,7 +139,7 @@ export default function HomePageContent() {
             autoPlay loop muted playsInline
             className="absolute inset-0 w-full h-full object-cover"
           >
-            <source src="/hero.mp4" type="video/mp4" />
+            <source src={process.env.NEXT_PUBLIC_HERO_VIDEO_URL ?? '/hero.mp4'} type="video/mp4" />
           </video>
 
           {/* ── CHANGED: darker overlay for readability ── */}
