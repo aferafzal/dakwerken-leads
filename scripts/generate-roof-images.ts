@@ -33,7 +33,7 @@ async function generateImage(gemeente: string, type: string, phase: 'before' | '
   const afterPrompt = `Realistic aerial photo of a perfectly renovated Belgian residential roof in ${gemeente} after ${type}. New tiles, pristine condition. Dutch house style, bright sky. Photorealistic.`
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash-exp-image-generation',
+    model: 'gemini-2.5-flash-image',
     contents: phase === 'before' ? beforePrompt : afterPrompt,
     config: {
       responseModalities: ['IMAGE'],

@@ -10,12 +10,8 @@
 
 import fs from 'fs'
 import path from 'path'
-
-// Lazily require Remotion om TypeScript errors te vermijden voor optionele deps
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { bundle } = require('@remotion/bundler')
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { renderMedia, selectComposition } = require('@remotion/renderer')
+import { bundle } from '@remotion/bundler'
+import { renderMedia, selectComposition } from '@remotion/renderer'
 
 const PROCESSED_DIR = path.join(process.cwd(), 'public', 'processed')
 const OUTPUT_DIR = path.join(process.cwd(), 'public', 'reels')

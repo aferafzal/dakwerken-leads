@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 type Message = {
   id: string
   inhoud: string
-  van: 'bezoeker' | 'owner'
+  van: 'klant' | 'ons'
   created_at: string
 }
 
@@ -72,10 +72,10 @@ export default function ChatWidget() {
       const res = await fetch('/api/chat/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation_id: conversationId, inhoud: tekst, van: 'bezoeker' }),
+        body: JSON.stringify({ conversation_id: conversationId, inhoud: tekst, van: 'klant' }),
       })
       if (res.ok) {
-        const msg: Message = { id: Date.now().toString(), inhoud: tekst, van: 'bezoeker', created_at: new Date().toISOString() }
+        const msg: Message = { id: Date.now().toString(), inhoud: tekst, van: 'klant', created_at: new Date().toISOString() }
         setMessages((prev) => [...prev, msg])
       }
     } catch {
@@ -154,10 +154,10 @@ export default function ChatWidget() {
                   </p>
                 )}
                 {messages.map((m) => (
-                  <div key={m.id} className={`flex ${m.van === 'bezoeker' ? 'justify-end' : 'justify-start'}`}>
+                  <div key={m.id} className={`flex ${m.van === 'klant' ? 'justify-end' : 'justify-start'}`}>
                     <div
                       className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
-                        m.van === 'bezoeker'
+                        m.van === 'klant'
                           ? 'bg-blue-600 text-white rounded-br-sm'
                           : 'bg-gray-100 text-gray-900 rounded-bl-sm'
                       }`}

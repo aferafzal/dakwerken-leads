@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 const messageSchema = z.object({
   conversation_id: z.string().uuid(),
   inhoud: z.string().min(1).max(2000),
-  van: z.enum(['bezoeker', 'owner'] as const),
+  van: z.enum(['klant', 'ons'] as const),
 })
 
 export async function POST(request: Request) {

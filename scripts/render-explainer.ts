@@ -1,21 +1,11 @@
 /**
  * Render de Spotable Explainer video naar /public/explainer.mp4
- * Gebruik: npx ts-node scripts/render-explainer.ts
- *
- * Vereisten:
- *   - Chrome/Chromium geïnstalleerd (Remotion gebruikt headless Chrome)
- *   - npx remotion lambda install --bundle (voor cloud rendering)
- *     OF lokaal renderen (zie hieronder)
+ * Gebruik: npx tsx scripts/render-explainer.ts
  */
 
-// Run: npm install @remotion/bundler @remotion/renderer --save-dev
-// Then: npx ts-node scripts/render-explainer.ts
-
 import path from 'path'
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { bundle } = require('@remotion/bundler') as typeof import('@remotion/bundler')
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { renderMedia, selectComposition } = require('@remotion/renderer') as typeof import('@remotion/renderer')
+import { bundle } from '@remotion/bundler'
+import { renderMedia, selectComposition } from '@remotion/renderer'
 
 async function main() {
   console.log('🎬 Remotion explainer video renderen...\n')

@@ -12,7 +12,7 @@ export async function sendLeadEmail(lead: LeadFormData & { id: string }) {
   const spotableAdres = encodeURIComponent(`${lead.adres ?? ''} ${lead.gemeente}`.trim())
 
   await resend.emails.send({
-    from: 'leads@dakwerken-oostvlaanderen.be',
+    from: 'Dakwerken Leads <onboarding@resend.dev>',
     to: ownerEmail,
     subject: `🔔 Nieuwe lead: ${lead.naam} — ${lead.gemeente} (urgentie ${lead.urgentie}/5)`,
     html: `

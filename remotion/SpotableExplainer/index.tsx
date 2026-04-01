@@ -1,4 +1,4 @@
-import { Composition, Series } from 'remotion'
+import { Composition, Series, registerRoot } from 'remotion'
 import { Scene1Probleem } from './scenes/Scene1Probleem'
 import { Scene2Adres } from './scenes/Scene2Adres'
 import { Scene3Meting } from './scenes/Scene3Meting'
@@ -45,3 +45,5 @@ export function RemotionRoot() {
     />
   )
 }
+
+registerRoot(RemotionRoot)
