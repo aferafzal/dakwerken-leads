@@ -133,7 +133,7 @@ export default function HomePageContent() {
         {/* ════════════════════════════════════════════════════
             01 — HERO  [CHANGED: Motion animations, new copy, new CTA styles]
         ════════════════════════════════════════════════════ */}
-        <section ref={setRef(0)} className={styles.section} id="hero">
+        <section ref={setRef(0)} className={`${styles.section} ${styles.sectionHero}`} id="hero">
           {/* ── CHANGED: video background ── */}
           <video
             autoPlay loop muted playsInline preload="auto"

@@ -189,6 +189,10 @@
     min-height: auto;
     padding: 5rem 0 4rem;
   }
+  .sectionHero {
+    min-height: 100svh;
+    padding: 0;
+  }
   .nav    { right: 0.75rem; gap: 0.6rem; }
   .navDot { width: 7px; height: 7px; }
   .navLabel { display: none; }
