@@ -4,13 +4,16 @@ const GEO      = 'https://geo.api.vlaanderen.be/Geolocation/v4'
 const BASISREG = 'https://api.basisregisters.vlaanderen.be/v2'
 const CAPAKEY  = 'https://geo.api.vlaanderen.be/capakey/v2'
 
+const WMS = 'https://geo.api.vlaanderen.be/OMWRGBMRVL/wms'
+
 export type DakmetingResultaat = {
-  oppervlakte:   number | null
-  gemeente:      string | null
-  capakey:       string | null
-  perceelnummer: string | null
-  afdeling:      string | null
+  oppervlakte:    number | null
+  gemeente:       string | null
+  capakey:        string | null
+  perceelnummer:  string | null
+  afdeling:       string | null
   aantalAdressen: number | null
+  luchtfotoUrl:   string | null
 }
 
 // GET /api/dakmeting?q=...      → adres autocomplete suggesties
@@ -42,6 +45,7 @@ async function meting(adres: string): Promise<NextResponse> {
   const leeg: DakmetingResultaat = {
     oppervlakte: null, gemeente: null, capakey: null,
     perceelnummer: null, afdeling: null, aantalAdressen: null,
+    luchtfotoUrl: null,
   }
 
   try {
@@ -61,6 +65,11 @@ async function meting(adres: string): Promise<NextResponse> {
 
     if (!straat || !huisnummer || !postcode) return NextResponse.json({ ...leeg, gemeente })
 
+    // Luchtfoto URL genereren (80×80m rondom het gebouw)
+    const luchtfotoUrl = x && y
+      ? `${WMS}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image/png&LAYERS=Ortho&STYLES=&CRS=EPSG:31370&BBOX=${Math.round(x - 40)},${Math.round(y - 40)},${Math.round(x + 40)},${Math.round(y + 40)}&WIDTH=500&HEIGHT=500`
+      : null
+
     // Stap 2 & 3: gebouwoppervlakte + Capakey parallel ophalen
     const [oppervlakte, capaInfo] = await Promise.all([
       berekenOppervlakte(postcode, huisnummer, straat),
@@ -74,6 +83,7 @@ async function meting(adres: string): Promise<NextResponse> {
       perceelnummer:  capaInfo?.perceelnummer  ?? null,
       afdeling:       capaInfo?.afdeling       ?? null,
       aantalAdressen: capaInfo?.aantalAdressen ?? null,
+      luchtfotoUrl,
     } satisfies DakmetingResultaat)
   } catch {
     return NextResponse.json(leeg)
