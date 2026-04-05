@@ -84,15 +84,23 @@ async function berekenOppervlakte(
   postcode: string, huisnummer: string, straat: string
 ): Promise<number | null> {
   try {
+    // Stap 1: adresObjectId ophalen
     const adresRes = await fetch(
       `${BASISREG}/adressen?postcode=${postcode}&huisnummer=${encodeURIComponent(huisnummer)}&straatnaam=${encodeURIComponent(straat)}`
     )
     if (!adresRes.ok) return null
-    const adresData = await adresRes.json()
-    const adresObjectId = adresData.adressen?.[0]?.identificator?.objectId
+    const adresObjectId = (await adresRes.json()).adressen?.[0]?.identificator?.objectId
     if (!adresObjectId) return null
 
-    const gebouwenRes = await fetch(`${BASISREG}/gebouwen?adresObjectId=${adresObjectId}`)
+    // Stap 2: perceel ophalen → capakey
+    // (gebouwen?adresObjectId is kapot in de Basisregisters API — altijd zelfde gebouw)
+    const perceelRes = await fetch(`${BASISREG}/percelen?adresObjectId=${adresObjectId}`)
+    if (!perceelRes.ok) return null
+    const capakey = (await perceelRes.json()).percelen?.[0]?.objectId
+    if (!capakey) return null
+
+    // Stap 3: gebouw via capakey → polygoon
+    const gebouwenRes = await fetch(`${BASISREG}/gebouwen?capakey=${encodeURIComponent(capakey)}`)
     if (!gebouwenRes.ok) return null
     const detailUrl = (await gebouwenRes.json()).gebouwen?.[0]?.detail
     if (!detailUrl) return null
