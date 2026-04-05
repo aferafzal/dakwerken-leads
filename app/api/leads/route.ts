@@ -35,6 +35,7 @@ export async function POST(request: Request) {
         opmerking: data.opmerking || null,
         gdpr_consent: data.gdpr_consent,
         followup_consent: data.followup_consent,
+        ...(data.dakOppervlakte ? { dak_oppervlakte: data.dakOppervlakte } : {}),
       })
       .select('id')
       .single()

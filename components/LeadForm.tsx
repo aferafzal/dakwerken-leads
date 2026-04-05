@@ -88,7 +88,7 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
     const res = await fetch('/api/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, dakOppervlakte: dakOppervlakte ?? undefined }),
     })
     if (res.ok) router.push('/bedankt')
   }

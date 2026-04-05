@@ -15,6 +15,7 @@ export const leadSchema = z.object({
   ),
   urgentie: z.number().int().min(1).max(5),
   opmerking: z.string().optional(),
+  dakOppervlakte: z.number().int().positive().optional(),
   gdpr_consent: z.literal(true, {
     error: 'U moet akkoord gaan met de privacyverklaring',
   }),

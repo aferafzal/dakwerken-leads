@@ -29,15 +29,22 @@ export async function sendLeadEmail(lead: LeadFormData & { id: string }) {
         <tr><td style="padding:8px;font-weight:bold">Follow-up consent</td><td style="padding:8px">${lead.followup_consent ? 'Ja' : 'Nee'}</td></tr>
       </table>
 
-      <div style="margin-top:24px;padding:16px;background:#fef9c3;border:1px solid #fbbf24;border-radius:8px">
-        <h3 style="margin:0 0 8px;color:#92400e">🛰️ Spotable AI Dakmeting</h3>
-        <p style="margin:0 0 12px;color:#78350f">
-          Open Spotable en voer het onderstaande adres in om de 3D-dakmeting te starten en een offerte te genereren:
+      ${lead.dakOppervlakte ? `
+      <div style="margin-top:24px;padding:20px;background:#f0fdf4;border:2px solid #16a34a;border-radius:8px">
+        <h3 style="margin:0 0 4px;color:#14532d;font-size:20px">🏠 Digitale dakmeting</h3>
+        <p style="margin:0;font-size:36px;font-weight:bold;color:#16a34a">±${lead.dakOppervlakte} m²</p>
+        <p style="margin:8px 0 0;color:#166534;font-size:13px">
+          Automatisch berekend via het Vlaams Gebouwenregister op basis van het kadastrale gebouwpolygoon.
         </p>
+      </div>
+      ` : ''}
+
+      <div style="margin-top:16px;padding:16px;background:#fef9c3;border:1px solid #fbbf24;border-radius:8px">
+        <h3 style="margin:0 0 8px;color:#92400e">📍 Locatie opzoeken</h3>
         <p style="margin:0 0 12px;font-weight:bold;font-size:16px">${lead.adres ?? lead.gemeente}</p>
-        <a href="https://app.spotable.be?address=${spotableAdres}"
+        <a href="https://www.google.com/maps/search/?api=1&query=${spotableAdres}"
            style="background:#f59e0b;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block">
-          Open Spotable →
+          Open in Google Maps →
         </a>
       </div>
 
