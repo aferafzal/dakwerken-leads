@@ -96,7 +96,7 @@ async function berekenOppervlakte(
     // (gebouwen?adresObjectId is kapot in de Basisregisters API — altijd zelfde gebouw)
     const perceelRes = await fetch(`${BASISREG}/percelen?adresObjectId=${adresObjectId}`)
     if (!perceelRes.ok) return null
-    const capakey = (await perceelRes.json()).percelen?.[0]?.objectId
+    const capakey = (await perceelRes.json()).percelen?.[0]?.identificator?.objectId
     if (!capakey) return null
 
     // Stap 3: gebouw via capakey → polygoon
