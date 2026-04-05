@@ -1,15 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const GEO = 'https://geo.api.vlaanderen.be/Geolocation/v4'
+const GEO      = 'https://geo.api.vlaanderen.be/Geolocation/v4'
 const BASISREG = 'https://api.basisregisters.vlaanderen.be/v2'
+const CAPAKEY  = 'https://geo.api.vlaanderen.be/capakey/v2'
+
+export type DakmetingResultaat = {
+  oppervlakte:   number | null
+  gemeente:      string | null
+  capakey:       string | null
+  perceelnummer: string | null
+  afdeling:      string | null
+  aantalAdressen: number | null
+}
 
 // GET /api/dakmeting?q=...      → adres autocomplete suggesties
-// GET /api/dakmeting?adres=...  → { oppervlakte: number|null, gemeente: string|null }
+// GET /api/dakmeting?adres=...  → DakmetingResultaat
 export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get('q')
+  const q     = req.nextUrl.searchParams.get('q')
   const adres = req.nextUrl.searchParams.get('adres')
 
-  if (q) return suggesties(q)
+  if (q)     return suggesties(q)
   if (adres) return meting(adres)
   return NextResponse.json({ error: 'q of adres parameter vereist' }, { status: 400 })
 }
@@ -28,60 +38,93 @@ async function suggesties(q: string) {
   }
 }
 
-async function meting(adres: string) {
+async function meting(adres: string): Promise<NextResponse> {
+  const leeg: DakmetingResultaat = {
+    oppervlakte: null, gemeente: null, capakey: null,
+    perceelnummer: null, afdeling: null, aantalAdressen: null,
+  }
+
   try {
-    // Stap 1: adres → velden + Lambert72 coördinaten
+    // Stap 1: adres → Lambert72 coördinaten + adrescomponenten
     const locRes = await fetch(`${GEO}/Location?q=${encodeURIComponent(adres)}`)
-    if (!locRes.ok) return NextResponse.json({ oppervlakte: null, gemeente: null })
+    if (!locRes.ok) return NextResponse.json(leeg)
     const locData = await locRes.json()
     const loc = locData.LocationResult?.[0]
-    if (!loc) return NextResponse.json({ oppervlakte: null, gemeente: null })
+    if (!loc) return NextResponse.json(leeg)
 
-    const gemeente: string = loc.Municipality ?? null
-    const postcode: string = loc.Zipcode
-    const straat: string = loc.Thoroughfarename
+    const gemeente: string   = loc.Municipality ?? null
+    const postcode: string   = loc.Zipcode
+    const straat: string     = loc.Thoroughfarename
     const huisnummer: string = loc.Housenumber
+    const x: number          = loc.Location?.X_Lambert72
+    const y: number          = loc.Location?.Y_Lambert72
 
-    if (!straat || !huisnummer || !postcode) {
-      return NextResponse.json({ oppervlakte: null, gemeente })
-    }
+    if (!straat || !huisnummer || !postcode) return NextResponse.json({ ...leeg, gemeente })
 
-    // Stap 2: adres → adresObjectId
+    // Stap 2 & 3: gebouwoppervlakte + Capakey parallel ophalen
+    const [oppervlakte, capaInfo] = await Promise.all([
+      berekenOppervlakte(postcode, huisnummer, straat),
+      x && y ? getCapakey(x, y) : Promise.resolve(null),
+    ])
+
+    return NextResponse.json({
+      oppervlakte,
+      gemeente,
+      capakey:        capaInfo?.capakey        ?? null,
+      perceelnummer:  capaInfo?.perceelnummer  ?? null,
+      afdeling:       capaInfo?.afdeling       ?? null,
+      aantalAdressen: capaInfo?.aantalAdressen ?? null,
+    } satisfies DakmetingResultaat)
+  } catch {
+    return NextResponse.json(leeg)
+  }
+}
+
+async function berekenOppervlakte(
+  postcode: string, huisnummer: string, straat: string
+): Promise<number | null> {
+  try {
     const adresRes = await fetch(
       `${BASISREG}/adressen?postcode=${postcode}&huisnummer=${encodeURIComponent(huisnummer)}&straatnaam=${encodeURIComponent(straat)}`
     )
-    if (!adresRes.ok) return NextResponse.json({ oppervlakte: null, gemeente })
+    if (!adresRes.ok) return null
     const adresData = await adresRes.json()
     const adresObjectId = adresData.adressen?.[0]?.identificator?.objectId
-    if (!adresObjectId) return NextResponse.json({ oppervlakte: null, gemeente })
+    if (!adresObjectId) return null
 
-    // Stap 3: adresObjectId → gebouw detail URL
     const gebouwenRes = await fetch(`${BASISREG}/gebouwen?adresObjectId=${adresObjectId}`)
-    if (!gebouwenRes.ok) return NextResponse.json({ oppervlakte: null, gemeente })
-    const gebouwenData = await gebouwenRes.json()
-    const detailUrl = gebouwenData.gebouwen?.[0]?.detail
-    if (!detailUrl) return NextResponse.json({ oppervlakte: null, gemeente })
+    if (!gebouwenRes.ok) return null
+    const detailUrl = (await gebouwenRes.json()).gebouwen?.[0]?.detail
+    if (!detailUrl) return null
 
-    // Stap 4: gebouw polygoon ophalen (GML posList)
-    const gebouwRes = await fetch(detailUrl)
-    if (!gebouwRes.ok) return NextResponse.json({ oppervlakte: null, gemeente })
-    const gebouw = await gebouwRes.json()
-
+    const gebouw = await (await fetch(detailUrl)).json()
     const gml: string = gebouw.gebouwPolygoon?.geometrie?.gml ?? ''
-    const posListMatch = gml.match(/<gml:posList[^>]*>([\s\S]+?)<\/gml:posList>/)
-    if (!posListMatch) return NextResponse.json({ oppervlakte: null, gemeente })
+    const match = gml.match(/<gml:posList[^>]*>([\s\S]+?)<\/gml:posList>/)
+    if (!match) return null
 
-    // Stap 5: oppervlakte berekenen via Shoelace (Lambert72 = meters → m²)
-    const nums = posListMatch[1].trim().split(/\s+/).map(Number)
+    const nums = match[1].trim().split(/\s+/).map(Number)
     const punten: [number, number][] = []
-    for (let i = 0; i + 1 < nums.length; i += 2) {
-      punten.push([nums[i], nums[i + 1]])
-    }
-
-    const oppervlakte = shoelace(punten)
-    return NextResponse.json({ oppervlakte: Math.round(oppervlakte), gemeente })
+    for (let i = 0; i + 1 < nums.length; i += 2) punten.push([nums[i], nums[i + 1]])
+    return Math.round(shoelace(punten))
   } catch {
-    return NextResponse.json({ oppervlakte: null, gemeente: null })
+    return null
+  }
+}
+
+async function getCapakey(x: number, y: number) {
+  try {
+    const res = await fetch(`${CAPAKEY}/parcel?x=${Math.round(x)}&y=${Math.round(y)}&srs=31370`)
+    if (!res.ok) return null
+    const d = await res.json()
+    if (!d?.result?.succes) return null
+    return {
+      capakey:        d.capakey       ?? null,
+      perceelnummer:  d.perceelnummer ?? null,
+      afdeling:       d.departmentName ?? null,
+      aantalAdressen: Array.isArray(d.adres) ? d.adres.length : null,
+    }
+  } catch {
+    return null
   }
 }
 

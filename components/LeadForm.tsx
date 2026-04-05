@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { leadSchema, type LeadFormData, probleemLabels } from '@/lib/validations'
 import { steden } from '@/lib/steden'
+import type { DakmetingResultaat } from '@/app/api/dakmeting/route'
 
 interface LeadFormProps {
   defaultGemeente?: string
@@ -14,11 +15,13 @@ interface LeadFormProps {
 export default function LeadForm({ defaultGemeente }: LeadFormProps) {
   const router = useRouter()
 
-  const [suggesties, setSuggesties]       = useState<string[]>([])
-  const [toonDropdown, setToonDropdown]   = useState(false)
-  const [metingBezig, setMetingBezig]     = useState(false)
-  const [dakOppervlakte, setDakOppervlakte] = useState<number | null>(null)
+  const [suggesties, setSuggesties]   = useState<string[]>([])
+  const [toonDropdown, setToonDropdown] = useState(false)
+  const [metingBezig, setMetingBezig]   = useState(false)
+  const [meting, setMeting]             = useState<DakmetingResultaat | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const dakOppervlakte = meting?.oppervlakte ?? null
 
   const {
     register,
@@ -49,7 +52,7 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
   function onAdresInput(e: React.ChangeEvent<HTMLInputElement>) {
     const q = e.target.value
     setValue('adres', q)
-    setDakOppervlakte(null)
+    setMeting(null)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (q.length < 4) { setSuggesties([]); setToonDropdown(false); return }
     debounceRef.current = setTimeout(async () => {
@@ -71,11 +74,11 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
     try {
       const res = await fetch(`/api/dakmeting?adres=${encodeURIComponent(adres)}`)
       if (res.ok) {
-        const data = await res.json()
-        if (data.oppervlakte) setDakOppervlakte(data.oppervlakte)
+        const data: DakmetingResultaat = await res.json()
+        setMeting(data)
         if (data.gemeente) {
           const match = steden.find(
-            (s) => s.naam.toLowerCase() === data.gemeente.toLowerCase()
+            (s) => s.naam.toLowerCase() === data.gemeente!.toLowerCase()
           )
           setValue('gemeente', match ? match.naam : 'Andere', { shouldValidate: true })
         }
@@ -162,14 +165,43 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
           </ul>
         )}
 
-        {/* Dakoppervlakte resultaat */}
-        {dakOppervlakte && (
-          <div className="mt-2 flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 px-3 py-2">
-            <svg className="h-4 w-4 shrink-0 text-green-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-            <p className="text-xs text-green-800">
-              Digitale dakmeting: <strong>±{dakOppervlakte} m²</strong> — wij sturen u een gedetailleerde offerte op maat.
+        {/* Woninginformatie kaart */}
+        {meting && (meting.oppervlakte || meting.perceelnummer) && (
+          <div className="mt-2 rounded-xl border border-green-200 bg-green-50 overflow-hidden">
+            <div className="px-3 py-2 bg-green-600 flex items-center gap-2">
+              <svg className="h-4 w-4 text-white shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+              <span className="text-xs font-semibold text-white">Woninginformatie — Vlaams Gebouwenregister</span>
+            </div>
+            <div className="grid grid-cols-2 gap-px bg-green-100 text-xs">
+              {meting.oppervlakte && (
+                <div className="bg-white px-3 py-2">
+                  <p className="text-gray-500 mb-0.5">Geschatte dakoppervlakte</p>
+                  <p className="font-bold text-green-700 text-base">±{meting.oppervlakte} m²</p>
+                </div>
+              )}
+              {meting.afdeling && (
+                <div className="bg-white px-3 py-2">
+                  <p className="text-gray-500 mb-0.5">Kadastrale afdeling</p>
+                  <p className="font-semibold text-gray-800">{meting.afdeling}</p>
+                </div>
+              )}
+              {meting.perceelnummer && (
+                <div className="bg-white px-3 py-2">
+                  <p className="text-gray-500 mb-0.5">Perceelnummer</p>
+                  <p className="font-semibold text-gray-800">{meting.perceelnummer}</p>
+                </div>
+              )}
+              {meting.aantalAdressen && meting.aantalAdressen > 1 && (
+                <div className="bg-white px-3 py-2">
+                  <p className="text-gray-500 mb-0.5">Adressen op perceel</p>
+                  <p className="font-semibold text-gray-800">{meting.aantalAdressen}</p>
+                </div>
+              )}
+            </div>
+            <p className="px-3 py-1.5 text-[10px] text-green-700 bg-green-50">
+              ✓ Officieel geregistreerd gebouw · Automatisch berekend
             </p>
           </div>
         )}
