@@ -46,8 +46,11 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
   const dakOppervlakte = kaartOppervlakte ?? meting?.dakOppervlak ?? meting?.oppervlakte ?? null
 
   const onPerceelSelect = useCallback((data: PerceelSelectie) => {
-    if (data.dakOppervlak) setKaartOppervlakte(data.dakOppervlak)
-    else if (data.oppervlakte) setKaartOppervlakte(data.oppervlakte)
+    // Tel dakoppervlak over alle gebouwen op het perceel
+    const gebouwen = data.gebouwen ?? []
+    const totaal = gebouwen.reduce((s, g) => s + (g.dakOppervlak ?? g.oppervlakte ?? 0), 0)
+    if (totaal > 0) setKaartOppervlakte(totaal)
+
     if (data.gemeente) {
       const match = steden.find(
         (s) => s.naam.toLowerCase() === data.gemeente!.toLowerCase()
@@ -194,12 +197,14 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
               perceelnummer: meting.perceelnummer,
               afdeling: meting.afdeling,
               aantalAdressen: meting.aantalAdressen,
-              oppervlakte: meting.oppervlakte,
-              dakOppervlak: meting.dakOppervlak,
               gemeente: meting.gemeente,
-              hoogte3d: meting.hoogte3d,
               perceelGrenzen: null,
-              gebouwGrenzen: null,
+              gebouwen: meting.oppervlakte ? [{
+                oppervlakte: meting.oppervlakte,
+                dakOppervlak: meting.dakOppervlak,
+                grenzen: [],
+                hoogte3d: meting.hoogte3d,
+              }] : [],
             } : null}
             onPerceelSelect={onPerceelSelect}
           />

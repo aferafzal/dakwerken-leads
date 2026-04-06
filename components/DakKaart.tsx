@@ -3,21 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import type { Hoogte3D } from '@/app/api/dakmeting/route'
+import type { GebouwInfo, PerceelKlikResultaat } from '@/app/api/dakmeting/route'
 
-export interface PerceelSelectie {
-  capakey:         string | null
-  perceelnummer:   string | null
-  afdeling:        string | null
-  aantalAdressen:  number | null
-  oppervlakte:     number | null
-  dakOppervlak:    number | null
-  gemeente:        string | null
-  hoogte3d:        Hoogte3D | null
-  perceelGrenzen:  [number, number][] | null
-  gebouwGrenzen:   [number, number][] | null
-  error?:          string
-}
+export type PerceelSelectie = PerceelKlikResultaat
 
 interface DakKaartProps {
   lat: number
@@ -79,14 +67,15 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
       className: 'leaflet-tooltip-adres',
     })
 
-    // Polygonen voor geselecteerd perceel/gebouw
+    // Polygonen voor geselecteerd perceel/gebouwen
     let perceelPolygon: L.Polygon | null = null
-    let gebouwPolygon: L.Polygon | null = null
+    const gebouwPolygons: L.Polygon[] = []
     let selectieMarker: L.CircleMarker | null = null
 
     function clearOverlays() {
       if (perceelPolygon) { map.removeLayer(perceelPolygon); perceelPolygon = null }
-      if (gebouwPolygon) { map.removeLayer(gebouwPolygon); gebouwPolygon = null }
+      gebouwPolygons.forEach((p) => map.removeLayer(p))
+      gebouwPolygons.length = 0
       if (selectieMarker) { map.removeLayer(selectieMarker); selectieMarker = null }
     }
 
@@ -105,17 +94,29 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
         ).addTo(map)
       }
 
-      // Gebouwcontour — groene lijn
-      if (data.gebouwGrenzen && data.gebouwGrenzen.length > 2) {
-        gebouwPolygon = L.polygon(
-          data.gebouwGrenzen as L.LatLngExpression[],
-          {
-            color: '#16a34a',
-            weight: 2.5,
-            fillColor: '#22c55e',
-            fillOpacity: 0.2,
+      // Gebouwcontouren — groene lijn per gebouw
+      if (data.gebouwen) {
+        data.gebouwen.forEach((geb) => {
+          if (geb.grenzen && geb.grenzen.length > 2) {
+            const poly = L.polygon(
+              geb.grenzen as L.LatLngExpression[],
+              {
+                color: '#16a34a',
+                weight: 2.5,
+                fillColor: '#22c55e',
+                fillOpacity: 0.2,
+              }
+            ).addTo(map)
+            if (geb.dakOppervlak || geb.oppervlakte) {
+              poly.bindTooltip(`±${geb.dakOppervlak ?? geb.oppervlakte} m²`, {
+                permanent: false,
+                direction: 'center',
+                className: 'leaflet-tooltip-gebouw',
+              })
+            }
+            gebouwPolygons.push(poly)
           }
-        ).addTo(map)
+        })
       }
     }
 
@@ -175,7 +176,14 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const h = selectie?.hoogte3d
+  // Bereken totalen over alle gebouwen
+  const gebouwen = selectie?.gebouwen ?? []
+  const totaalDak = gebouwen.reduce((s, g) => s + (g.dakOppervlak ?? g.oppervlakte ?? 0), 0)
+  const totaalFootprint = gebouwen.reduce((s, g) => s + (g.oppervlakte ?? 0), 0)
+  const hoofdGebouw = gebouwen.length > 0
+    ? gebouwen.reduce((a, b) => (b.oppervlakte > a.oppervlakte ? b : a))
+    : null
+  const h = hoofdGebouw?.hoogte3d ?? null
 
   return (
     <div className="mt-2 rounded-xl border border-green-200 bg-green-50 overflow-hidden">
@@ -208,21 +216,21 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
       )}
 
       {/* Geselecteerd perceel info */}
-      {selectie && !selectie.error && (
+      {selectie && !selectie.error && gebouwen.length > 0 && (
         <>
           {/* Dakoppervlakte hero */}
-          {(selectie.dakOppervlak || selectie.oppervlakte) && (
+          {totaalDak > 0 && (
             <div className="px-4 py-3 bg-green-700 text-white flex items-center justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-wider opacity-80">
-                  {selectie.dakOppervlak ? 'Geschatte dakoppervlakte' : 'Grondoppervlakte gebouw'}
+                  Geschatte dakoppervlakte{gebouwen.length > 1 ? ` (${gebouwen.length} gebouwen)` : ''}
                 </p>
                 <p className="text-2xl font-bold leading-tight">
-                  ±{selectie.dakOppervlak ?? selectie.oppervlakte} m²
+                  ±{totaalDak} m²
                 </p>
-                {selectie.dakOppervlak && selectie.oppervlakte && selectie.dakOppervlak !== selectie.oppervlakte && (
+                {totaalDak !== totaalFootprint && totaalFootprint > 0 && (
                   <p className="text-[10px] opacity-70 mt-0.5">
-                    Grondvlak: {selectie.oppervlakte} m² + hellingcorrectie
+                    Grondvlak: {totaalFootprint} m² + hellingcorrectie
                   </p>
                 )}
               </div>
@@ -235,9 +243,26 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
             </div>
           )}
 
+          {/* Per gebouw details (alleen als meerdere gebouwen) */}
+          {gebouwen.length > 1 && (
+            <div className="px-3 py-2 bg-green-50 space-y-1">
+              {gebouwen.map((geb, i) => (
+                <div key={i} className="flex items-center justify-between text-xs text-gray-700">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block w-2.5 h-2.5 bg-green-500/30 border border-green-600 rounded-sm" />
+                    {geb.hoogte3d?.gebouwType ?? `Gebouw ${i + 1}`}
+                  </span>
+                  <span className="font-semibold">
+                    ±{geb.dakOppervlak ?? geb.oppervlakte} m²
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Detail velden */}
           <div className="grid grid-cols-2 gap-px bg-green-100 text-xs">
-            {h?.gebouwType && (
+            {h?.gebouwType && gebouwen.length === 1 && (
               <div className="bg-white px-3 py-2">
                 <p className="text-gray-500 mb-0.5">Gebouwtype</p>
                 <p className="font-semibold text-gray-800 capitalize">{h.gebouwType}</p>
@@ -272,16 +297,16 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
       )}
 
       {/* Legenda */}
-      {selectie && !selectie.error && (selectie.perceelGrenzen || selectie.gebouwGrenzen) && (
+      {selectie && !selectie.error && (selectie.perceelGrenzen || gebouwen.length > 0) && (
         <div className="px-3 py-1.5 flex gap-4 text-[10px] text-gray-600 bg-white border-t border-green-100">
           {selectie.perceelGrenzen && (
             <span className="flex items-center gap-1">
               <span className="inline-block w-4 h-0.5 border-t-2 border-dashed border-amber-500" /> Perceelgrens
             </span>
           )}
-          {selectie.gebouwGrenzen && (
+          {gebouwen.length > 0 && (
             <span className="flex items-center gap-1">
-              <span className="inline-block w-4 h-2 bg-green-500/30 border border-green-600 rounded-sm" /> Gebouw
+              <span className="inline-block w-4 h-2 bg-green-500/30 border border-green-600 rounded-sm" /> Gebouw{gebouwen.length > 1 ? 'en' : ''}
             </span>
           )}
         </div>
@@ -308,6 +333,19 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
         }
         .leaflet-tooltip-adres::before {
           border-top-color: #16a34a;
+        }
+        .leaflet-tooltip-gebouw {
+          background: #166534;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          padding: 2px 6px;
+          font-size: 11px;
+          font-weight: 600;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .leaflet-tooltip-gebouw::before {
+          border-top-color: #166534;
         }
       `}</style>
     </div>

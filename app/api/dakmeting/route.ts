@@ -36,17 +36,21 @@ export type DakmetingResultaat = {
   hoogte3d:       Hoogte3D | null
 }
 
+export type GebouwInfo = {
+  oppervlakte:  number
+  dakOppervlak: number | null
+  grenzen:      [number, number][]  // [lat, lng][] polygon
+  hoogte3d:     Hoogte3D | null
+}
+
 export type PerceelKlikResultaat = {
   capakey:         string | null
   perceelnummer:   string | null
   afdeling:        string | null
   aantalAdressen:  number | null
-  oppervlakte:     number | null
-  dakOppervlak:    number | null
   gemeente:        string | null
-  hoogte3d:        Hoogte3D | null
   perceelGrenzen:  [number, number][] | null  // [lat, lng][] polygon
-  gebouwGrenzen:   [number, number][] | null  // [lat, lng][] polygon
+  gebouwen:        GebouwInfo[]               // alle gebouwen op het perceel
   error?:          string
 }
 
@@ -140,38 +144,30 @@ async function meting(adres: string): Promise<NextResponse> {
   }
 }
 
-// ─── Klik op kaart → perceelinfo + grenzen ───────────────────────────
+// ─── Klik op kaart → perceelinfo + alle gebouwen ─────────────────────
 async function perceelKlik(lat: number, lng: number): Promise<NextResponse> {
   try {
     const [x, y] = proj4('EPSG:4326', 'EPSG:31370', [lng, lat])
 
-    // Stap 1: identificeer perceel
-    const capaInfo = await getCapakey(x, y)
+    // Stap 1: identificeer perceel (Capakey API geeft ook geometry als JSON)
+    const capaInfo = await getCapakeyMetGeometrie(x, y)
     if (!capaInfo?.capakey) {
       return NextResponse.json({ error: 'Geen perceel gevonden op deze locatie' } as PerceelKlikResultaat)
     }
 
-    // Stap 2: alle details parallel ophalen via capakey (consistent per perceel)
-    const [perceelGrenzen, gebouwInfo, hoogte3d] = await Promise.all([
-      getPerceelGrenzen(capaInfo.capakey),
-      getGebouwDetail(capaInfo.capakey),
-      get3DGrbInfo(x, y),
-    ])
-
-    const footprint = gebouwInfo?.oppervlakte ?? hoogte3d?.footprint3d ?? null
-    const dakOppervlak = berekenDakOppervlak(footprint, hoogte3d?.nokhoogte ?? null)
+    // Stap 2: alle gebouwen op dit perceel ophalen
+    // Basisregisters gebruikt '-' waar Capakey API '/' gebruikt
+    const basisregCapakey = capaInfo.capakey.replace('/', '-')
+    const gebouwen = await getAlleGebouwen(basisregCapakey)
 
     return NextResponse.json({
       capakey:        capaInfo.capakey,
       perceelnummer:  capaInfo.perceelnummer,
       afdeling:       capaInfo.afdeling,
       aantalAdressen: capaInfo.aantalAdressen,
-      oppervlakte:    footprint,
-      dakOppervlak,
       gemeente:       capaInfo.gemeente ?? null,
-      hoogte3d,
-      perceelGrenzen,
-      gebouwGrenzen:  gebouwInfo?.grenzen ?? null,
+      perceelGrenzen: capaInfo.perceelGrenzen,
+      gebouwen,
     } satisfies PerceelKlikResultaat)
   } catch {
     return NextResponse.json({ error: 'Fout bij opzoeken perceel' } as PerceelKlikResultaat)
@@ -299,17 +295,9 @@ async function berekenOppervlakte(
 }
 
 async function getGebouwOppervlakte(capakey: string): Promise<number | null> {
-  const info = await getGebouwDetail(capakey)
-  return info?.oppervlakte ?? null
-}
-
-/** Gebouw ophalen via capakey → oppervlakte + WGS84 grenzen */
-async function getGebouwDetail(capakey: string): Promise<{
-  oppervlakte: number | null
-  grenzen: [number, number][] | null
-} | null> {
   try {
-    const gebouwenRes = await fetch(`${BASISREG}/gebouwen?capakey=${encodeURIComponent(capakey)}`)
+    const basisregCapakey = capakey.replace('/', '-')
+    const gebouwenRes = await fetch(`${BASISREG}/gebouwen?capakey=${encodeURIComponent(basisregCapakey)}`)
     if (!gebouwenRes.ok) return null
     const detailUrl = (await gebouwenRes.json()).gebouwen?.[0]?.detail
     if (!detailUrl) return null
@@ -318,26 +306,102 @@ async function getGebouwDetail(capakey: string): Promise<{
     const gml: string = gebouw.gebouwPolygoon?.geometrie?.gml ?? ''
     const lambert72 = extractCoordsFromGml(gml)
     if (!lambert72) return null
+    return Math.round(shoelace(lambert72))
+  } catch {
+    return null
+  }
+}
+
+/** Alle gebouwen op een perceel ophalen met contour + 3D hoogte */
+async function getAlleGebouwen(basisregCapakey: string): Promise<GebouwInfo[]> {
+  try {
+    const gebouwenRes = await fetch(`${BASISREG}/gebouwen?capakey=${encodeURIComponent(basisregCapakey)}`)
+    if (!gebouwenRes.ok) return []
+    const lijst = (await gebouwenRes.json()).gebouwen ?? []
+    if (lijst.length === 0) return []
+
+    // Alle gebouwdetails parallel ophalen
+    const details = await Promise.all(
+      lijst.map(async (g: { detail?: string }): Promise<GebouwInfo | null> => {
+        if (!g.detail) return null
+        try {
+          const gebouw = await (await fetch(g.detail)).json()
+          const gml: string = gebouw.gebouwPolygoon?.geometrie?.gml ?? ''
+          const lambert72 = extractCoordsFromGml(gml)
+          if (!lambert72 || lambert72.length < 3) return null
+
+          const oppervlakte = Math.round(shoelace(lambert72))
+          const grenzen = lambert72ToWgs84(lambert72)
+
+          // 3D hoogte ophalen via centroïde van het gebouw
+          const cx = lambert72.reduce((s, [x]) => s + x, 0) / lambert72.length
+          const cy = lambert72.reduce((s, [, y]) => s + y, 0) / lambert72.length
+          const hoogte3d = await get3DGrbInfo(cx, cy)
+
+          const dakOppervlak = berekenDakOppervlak(oppervlakte, hoogte3d?.nokhoogte ?? null)
+
+          return { oppervlakte, dakOppervlak, grenzen, hoogte3d }
+        } catch {
+          return null
+        }
+      })
+    )
+
+    return details.filter((d): d is GebouwInfo => d !== null)
+  } catch {
+    return []
+  }
+}
+
+/** Capakey API met perceelgeometrie (JSON formaat) */
+async function getCapakeyMetGeometrie(x: number, y: number) {
+  try {
+    const res = await fetch(`${CAPAKEY}/parcel?x=${Math.round(x)}&y=${Math.round(y)}&srs=31370`)
+    if (!res.ok) return null
+    const d = await res.json()
+    if (!d?.result?.succes) return null
+
+    // Perceelgeometrie zit als JSON-string in d.geometry.boundingBox
+    // We moeten de polygon-coördinaten (Lambert72) → WGS84 converteren
+    let perceelGrenzen: [number, number][] | null = null
+    try {
+      const geomJson = JSON.parse(d.geometry?.boundingBox ?? '{}')
+      const coords: number[][][] = geomJson?.coordinates
+      if (coords?.[0]) {
+        perceelGrenzen = coords[0].map(([x, y]) => {
+          const [lng, lat] = proj4('EPSG:31370', 'EPSG:4326', [x, y])
+          return [lat, lng] as [number, number]
+        })
+      }
+    } catch { /* geometry parsing mislukt, niet fataal */ }
 
     return {
-      oppervlakte: Math.round(shoelace(lambert72)),
-      grenzen: lambert72ToWgs84(lambert72),
+      capakey:        d.capakey        ?? null,
+      perceelnummer:  d.perceelnummer  ?? null,
+      afdeling:       d.departmentName ?? null,
+      aantalAdressen: Array.isArray(d.adres) ? d.adres.length : null,
+      gemeente:       d.municipalityName ?? null,
+      perceelGrenzen,
     }
   } catch {
     return null
   }
 }
 
-/** Perceelgrenzen ophalen via Basisregisters → WGS84 polygon */
-async function getPerceelGrenzen(capakey: string): Promise<[number, number][] | null> {
+/** Oude getCapakey voor de meting() flow (zonder geometrie) */
+async function getCapakey(x: number, y: number) {
   try {
-    const res = await fetch(`${BASISREG}/percelen/${encodeURIComponent(capakey)}`)
+    const res = await fetch(`${CAPAKEY}/parcel?x=${Math.round(x)}&y=${Math.round(y)}&srs=31370`)
     if (!res.ok) return null
-    const data = await res.json()
-    const gml: string = data.perceelPolygoon?.geometrie?.gml ?? ''
-    const lambert72 = extractCoordsFromGml(gml)
-    if (!lambert72) return null
-    return lambert72ToWgs84(lambert72)
+    const d = await res.json()
+    if (!d?.result?.succes) return null
+    return {
+      capakey:        d.capakey        ?? null,
+      perceelnummer:  d.perceelnummer  ?? null,
+      afdeling:       d.departmentName ?? null,
+      aantalAdressen: Array.isArray(d.adres) ? d.adres.length : null,
+      gemeente:       d.municipalityName ?? null,
+    }
   } catch {
     return null
   }
@@ -360,24 +424,6 @@ function lambert72ToWgs84(coords: [number, number][]): [number, number][] {
     const [lng, lat] = proj4('EPSG:31370', 'EPSG:4326', [x, y])
     return [lat, lng] as [number, number]
   })
-}
-
-async function getCapakey(x: number, y: number) {
-  try {
-    const res = await fetch(`${CAPAKEY}/parcel?x=${Math.round(x)}&y=${Math.round(y)}&srs=31370`)
-    if (!res.ok) return null
-    const d = await res.json()
-    if (!d?.result?.succes) return null
-    return {
-      capakey:        d.capakey        ?? null,
-      perceelnummer:  d.perceelnummer  ?? null,
-      afdeling:       d.departmentName ?? null,
-      aantalAdressen: Array.isArray(d.adres) ? d.adres.length : null,
-      gemeente:       d.municipalityName ?? null,
-    }
-  } catch {
-    return null
-  }
 }
 
 function shoelace(punten: [number, number][]): number {
