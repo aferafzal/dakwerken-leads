@@ -6,15 +6,17 @@ import 'leaflet/dist/leaflet.css'
 import type { Hoogte3D } from '@/app/api/dakmeting/route'
 
 export interface PerceelSelectie {
-  capakey:        string | null
-  perceelnummer:  string | null
-  afdeling:       string | null
-  aantalAdressen: number | null
-  oppervlakte:    number | null
-  dakOppervlak:   number | null
-  gemeente:       string | null
-  hoogte3d:       Hoogte3D | null
-  error?:         string
+  capakey:         string | null
+  perceelnummer:   string | null
+  afdeling:        string | null
+  aantalAdressen:  number | null
+  oppervlakte:     number | null
+  dakOppervlak:    number | null
+  gemeente:        string | null
+  hoogte3d:        Hoogte3D | null
+  perceelGrenzen:  [number, number][] | null
+  gebouwGrenzen:   [number, number][] | null
+  error?:          string
 }
 
 interface DakKaartProps {
@@ -54,7 +56,7 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
       attribution: '© Vlaanderen',
     }).addTo(map)
 
-    // Kadastrale perceelgrenzen
+    // Kadastrale perceelgrenzen (achtergrond — alle percelen)
     L.tileLayer.wms('https://geo.api.vlaanderen.be/GRB/wms', {
       layers: 'GRB_ADP',
       format: 'image/png',
@@ -77,15 +79,54 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
       className: 'leaflet-tooltip-adres',
     })
 
+    // Polygonen voor geselecteerd perceel/gebouw
+    let perceelPolygon: L.Polygon | null = null
+    let gebouwPolygon: L.Polygon | null = null
     let selectieMarker: L.CircleMarker | null = null
+
+    function clearOverlays() {
+      if (perceelPolygon) { map.removeLayer(perceelPolygon); perceelPolygon = null }
+      if (gebouwPolygon) { map.removeLayer(gebouwPolygon); gebouwPolygon = null }
+      if (selectieMarker) { map.removeLayer(selectieMarker); selectieMarker = null }
+    }
+
+    function drawOverlays(data: PerceelSelectie) {
+      // Perceelomlijning — gele stippellijn
+      if (data.perceelGrenzen && data.perceelGrenzen.length > 2) {
+        perceelPolygon = L.polygon(
+          data.perceelGrenzen as L.LatLngExpression[],
+          {
+            color: '#f59e0b',
+            weight: 3,
+            dashArray: '8 5',
+            fillColor: '#fbbf24',
+            fillOpacity: 0.08,
+          }
+        ).addTo(map)
+      }
+
+      // Gebouwcontour — groene lijn
+      if (data.gebouwGrenzen && data.gebouwGrenzen.length > 2) {
+        gebouwPolygon = L.polygon(
+          data.gebouwGrenzen as L.LatLngExpression[],
+          {
+            color: '#16a34a',
+            weight: 2.5,
+            fillColor: '#22c55e',
+            fillOpacity: 0.2,
+          }
+        ).addTo(map)
+      }
+    }
 
     map.on('click', async (e: L.LeafletMouseEvent) => {
       const { lat: clickLat, lng: clickLng } = e.latlng
 
-      if (selectieMarker) map.removeLayer(selectieMarker)
+      clearOverlays()
 
+      // Tijdelijke klikmarker
       selectieMarker = L.circleMarker([clickLat, clickLng], {
-        radius: 12,
+        radius: 10,
         color: '#f59e0b',
         fillColor: '#fbbf24',
         fillOpacity: 0.5,
@@ -110,25 +151,18 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
 
         if (data.error) {
           setFout(data.error)
-          if (selectieMarker) map.removeLayer(selectieMarker)
-          selectieMarker = null
+          clearOverlays()
         } else {
+          // Verwijder klikmarker — polygonen nemen het over
+          if (selectieMarker) { map.removeLayer(selectieMarker); selectieMarker = null }
+
+          drawOverlays(data)
           setSelectie(data)
           callbackRef.current(data)
-
-          if (selectieMarker) {
-            selectieMarker.setStyle({
-              color: '#16a34a',
-              fillColor: '#22c55e',
-              fillOpacity: 0.6,
-              dashArray: undefined,
-            })
-          }
         }
       } catch {
         setFout('Netwerkfout bij ophalen perceelgegevens')
-        if (selectieMarker) map.removeLayer(selectieMarker)
-        selectieMarker = null
+        clearOverlays()
       }
 
       setKlikBezig(false)
@@ -235,6 +269,22 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
             )}
           </div>
         </>
+      )}
+
+      {/* Legenda */}
+      {selectie && !selectie.error && (selectie.perceelGrenzen || selectie.gebouwGrenzen) && (
+        <div className="px-3 py-1.5 flex gap-4 text-[10px] text-gray-600 bg-white border-t border-green-100">
+          {selectie.perceelGrenzen && (
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-4 h-0.5 border-t-2 border-dashed border-amber-500" /> Perceelgrens
+            </span>
+          )}
+          {selectie.gebouwGrenzen && (
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-4 h-2 bg-green-500/30 border border-green-600 rounded-sm" /> Gebouw
+            </span>
+          )}
+        </div>
       )}
 
       {/* Footer */}

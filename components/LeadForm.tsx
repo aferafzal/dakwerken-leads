@@ -198,6 +198,8 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
               dakOppervlak: meting.dakOppervlak,
               gemeente: meting.gemeente,
               hoogte3d: meting.hoogte3d,
+              perceelGrenzen: null,
+              gebouwGrenzen: null,
             } : null}
             onPerceelSelect={onPerceelSelect}
           />

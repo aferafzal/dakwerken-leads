@@ -37,15 +37,17 @@ export type DakmetingResultaat = {
 }
 
 export type PerceelKlikResultaat = {
-  capakey:        string | null
-  perceelnummer:  string | null
-  afdeling:       string | null
-  aantalAdressen: number | null
-  oppervlakte:    number | null
-  dakOppervlak:   number | null
-  gemeente:       string | null
-  hoogte3d:       Hoogte3D | null
-  error?:         string
+  capakey:         string | null
+  perceelnummer:   string | null
+  afdeling:        string | null
+  aantalAdressen:  number | null
+  oppervlakte:     number | null
+  dakOppervlak:    number | null
+  gemeente:        string | null
+  hoogte3d:        Hoogte3D | null
+  perceelGrenzen:  [number, number][] | null  // [lat, lng][] polygon
+  gebouwGrenzen:   [number, number][] | null  // [lat, lng][] polygon
+  error?:          string
 }
 
 // GET /api/dakmeting?q=...                       → adres autocomplete suggesties
@@ -138,23 +140,25 @@ async function meting(adres: string): Promise<NextResponse> {
   }
 }
 
-// ─── Klik op kaart → perceelinfo ─────────────────────────────────────
+// ─── Klik op kaart → perceelinfo + grenzen ───────────────────────────
 async function perceelKlik(lat: number, lng: number): Promise<NextResponse> {
   try {
     const [x, y] = proj4('EPSG:4326', 'EPSG:31370', [lng, lat])
 
-    const [capaInfo, oppervlakte, hoogte3d] = await Promise.all([
-      getCapakey(x, y),
-      getGebouwOppervlakteXY(x, y),
-      get3DGrbInfo(x, y),
-    ])
-
-    if (!capaInfo) {
+    // Stap 1: identificeer perceel
+    const capaInfo = await getCapakey(x, y)
+    if (!capaInfo?.capakey) {
       return NextResponse.json({ error: 'Geen perceel gevonden op deze locatie' } as PerceelKlikResultaat)
     }
 
-    const opp = oppervlakte ?? (capaInfo.capakey ? await getGebouwOppervlakte(capaInfo.capakey) : null)
-    const footprint = opp ?? hoogte3d?.footprint3d ?? null
+    // Stap 2: alle details parallel ophalen via capakey (consistent per perceel)
+    const [perceelGrenzen, gebouwInfo, hoogte3d] = await Promise.all([
+      getPerceelGrenzen(capaInfo.capakey),
+      getGebouwDetail(capaInfo.capakey),
+      get3DGrbInfo(x, y),
+    ])
+
+    const footprint = gebouwInfo?.oppervlakte ?? hoogte3d?.footprint3d ?? null
     const dakOppervlak = berekenDakOppervlak(footprint, hoogte3d?.nokhoogte ?? null)
 
     return NextResponse.json({
@@ -166,6 +170,8 @@ async function perceelKlik(lat: number, lng: number): Promise<NextResponse> {
       dakOppervlak,
       gemeente:       capaInfo.gemeente ?? null,
       hoogte3d,
+      perceelGrenzen,
+      gebouwGrenzen:  gebouwInfo?.grenzen ?? null,
     } satisfies PerceelKlikResultaat)
   } catch {
     return NextResponse.json({ error: 'Fout bij opzoeken perceel' } as PerceelKlikResultaat)
@@ -293,6 +299,15 @@ async function berekenOppervlakte(
 }
 
 async function getGebouwOppervlakte(capakey: string): Promise<number | null> {
+  const info = await getGebouwDetail(capakey)
+  return info?.oppervlakte ?? null
+}
+
+/** Gebouw ophalen via capakey → oppervlakte + WGS84 grenzen */
+async function getGebouwDetail(capakey: string): Promise<{
+  oppervlakte: number | null
+  grenzen: [number, number][] | null
+} | null> {
   try {
     const gebouwenRes = await fetch(`${BASISREG}/gebouwen?capakey=${encodeURIComponent(capakey)}`)
     if (!gebouwenRes.ok) return null
@@ -300,38 +315,51 @@ async function getGebouwOppervlakte(capakey: string): Promise<number | null> {
     if (!detailUrl) return null
 
     const gebouw = await (await fetch(detailUrl)).json()
-    return extractOppervlakteFromGml(gebouw.gebouwPolygoon?.geometrie?.gml ?? '')
+    const gml: string = gebouw.gebouwPolygoon?.geometrie?.gml ?? ''
+    const lambert72 = extractCoordsFromGml(gml)
+    if (!lambert72) return null
+
+    return {
+      oppervlakte: Math.round(shoelace(lambert72)),
+      grenzen: lambert72ToWgs84(lambert72),
+    }
   } catch {
     return null
   }
 }
 
-async function getGebouwOppervlakteXY(x: number, y: number): Promise<number | null> {
+/** Perceelgrenzen ophalen via Basisregisters → WGS84 polygon */
+async function getPerceelGrenzen(capakey: string): Promise<[number, number][] | null> {
   try {
-    const gebouwenRes = await fetch(
-      `${BASISREG}/gebouwen?status=gerealiseerd&limit=1` +
-      `&boundingBox.lowerLeft=${Math.round(x - 30)},${Math.round(y - 30)}` +
-      `&boundingBox.upperRight=${Math.round(x + 30)},${Math.round(y + 30)}`
-    )
-    if (!gebouwenRes.ok) return null
-    const detailUrl = (await gebouwenRes.json()).gebouwen?.[0]?.detail
-    if (!detailUrl) return null
-
-    const gebouw = await (await fetch(detailUrl)).json()
-    return extractOppervlakteFromGml(gebouw.gebouwPolygoon?.geometrie?.gml ?? '')
+    const res = await fetch(`${BASISREG}/percelen/${encodeURIComponent(capakey)}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    const gml: string = data.perceelPolygoon?.geometrie?.gml ?? ''
+    const lambert72 = extractCoordsFromGml(gml)
+    if (!lambert72) return null
+    return lambert72ToWgs84(lambert72)
   } catch {
     return null
   }
 }
 
-function extractOppervlakteFromGml(gml: string): number | null {
+/** Parse Lambert72 coördinaten uit GML posList */
+function extractCoordsFromGml(gml: string): [number, number][] | null {
   const match = gml.match(/<gml:posList[^>]*>([\s\S]+?)<\/gml:posList>/)
   if (!match) return null
 
   const nums = match[1].trim().split(/\s+/).map(Number)
   const punten: [number, number][] = []
   for (let i = 0; i + 1 < nums.length; i += 2) punten.push([nums[i], nums[i + 1]])
-  return Math.round(shoelace(punten))
+  return punten.length > 2 ? punten : null
+}
+
+/** Lambert72 [x,y][] → WGS84 [lat,lng][] voor Leaflet */
+function lambert72ToWgs84(coords: [number, number][]): [number, number][] {
+  return coords.map(([x, y]) => {
+    const [lng, lat] = proj4('EPSG:31370', 'EPSG:4326', [x, y])
+    return [lat, lng] as [number, number]
+  })
 }
 
 async function getCapakey(x: number, y: number) {
