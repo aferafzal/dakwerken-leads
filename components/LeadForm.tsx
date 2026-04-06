@@ -42,10 +42,12 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
     },
   })
 
-  const dakOppervlakte = kaartOppervlakte ?? meting?.oppervlakte ?? null
+  // Gebruik dakOppervlak (met hellingcorrectie) als dat beschikbaar is, anders footprint
+  const dakOppervlakte = kaartOppervlakte ?? meting?.dakOppervlak ?? meting?.oppervlakte ?? null
 
   const onPerceelSelect = useCallback((data: PerceelSelectie) => {
-    if (data.oppervlakte) setKaartOppervlakte(data.oppervlakte)
+    if (data.dakOppervlak) setKaartOppervlakte(data.dakOppervlak)
+    else if (data.oppervlakte) setKaartOppervlakte(data.oppervlakte)
     if (data.gemeente) {
       const match = steden.find(
         (s) => s.naam.toLowerCase() === data.gemeente!.toLowerCase()
@@ -193,7 +195,9 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
               afdeling: meting.afdeling,
               aantalAdressen: meting.aantalAdressen,
               oppervlakte: meting.oppervlakte,
+              dakOppervlak: meting.dakOppervlak,
               gemeente: meting.gemeente,
+              hoogte3d: meting.hoogte3d,
             } : null}
             onPerceelSelect={onPerceelSelect}
           />

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import type { Hoogte3D } from '@/app/api/dakmeting/route'
 
 export interface PerceelSelectie {
   capakey:        string | null
@@ -10,7 +11,9 @@ export interface PerceelSelectie {
   afdeling:       string | null
   aantalAdressen: number | null
   oppervlakte:    number | null
+  dakOppervlak:   number | null
   gemeente:       string | null
+  hoogte3d:       Hoogte3D | null
   error?:         string
 }
 
@@ -79,10 +82,8 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
     map.on('click', async (e: L.LeafletMouseEvent) => {
       const { lat: clickLat, lng: clickLng } = e.latlng
 
-      // Verwijder vorige selectie
       if (selectieMarker) map.removeLayer(selectieMarker)
 
-      // Nieuwe selectiemarker
       selectieMarker = L.circleMarker([clickLat, clickLng], {
         radius: 12,
         color: '#f59e0b',
@@ -109,14 +110,12 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
 
         if (data.error) {
           setFout(data.error)
-          // Verwijder marker als geen perceel gevonden
           if (selectieMarker) map.removeLayer(selectieMarker)
           selectieMarker = null
         } else {
           setSelectie(data)
           callbackRef.current(data)
 
-          // Marker aanpassen naar bevestigd
           if (selectieMarker) {
             selectieMarker.setStyle({
               color: '#16a34a',
@@ -141,6 +140,8 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const h = selectie?.hoogte3d
 
   return (
     <div className="mt-2 rounded-xl border border-green-200 bg-green-50 overflow-hidden">
@@ -174,38 +175,72 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
 
       {/* Geselecteerd perceel info */}
       {selectie && !selectie.error && (
-        <div className="grid grid-cols-2 gap-px bg-green-100 text-xs">
-          {selectie.oppervlakte && (
-            <div className="bg-white px-3 py-2">
-              <p className="text-gray-500 mb-0.5">Geschatte dakoppervlakte</p>
-              <p className="font-bold text-green-700 text-base">±{selectie.oppervlakte} m²</p>
+        <>
+          {/* Dakoppervlakte hero */}
+          {(selectie.dakOppervlak || selectie.oppervlakte) && (
+            <div className="px-4 py-3 bg-green-700 text-white flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider opacity-80">
+                  {selectie.dakOppervlak ? 'Geschatte dakoppervlakte' : 'Grondoppervlakte gebouw'}
+                </p>
+                <p className="text-2xl font-bold leading-tight">
+                  ±{selectie.dakOppervlak ?? selectie.oppervlakte} m²
+                </p>
+                {selectie.dakOppervlak && selectie.oppervlakte && selectie.dakOppervlak !== selectie.oppervlakte && (
+                  <p className="text-[10px] opacity-70 mt-0.5">
+                    Grondvlak: {selectie.oppervlakte} m² + hellingcorrectie
+                  </p>
+                )}
+              </div>
+              {h?.nokhoogte && (
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-wider opacity-80">Nokhoogte</p>
+                  <p className="text-xl font-bold">{h.nokhoogte} m</p>
+                </div>
+              )}
             </div>
           )}
-          {selectie.afdeling && (
-            <div className="bg-white px-3 py-2">
-              <p className="text-gray-500 mb-0.5">Kadastrale afdeling</p>
-              <p className="font-semibold text-gray-800">{selectie.afdeling}</p>
-            </div>
-          )}
-          {selectie.perceelnummer && (
-            <div className="bg-white px-3 py-2">
-              <p className="text-gray-500 mb-0.5">Perceelnummer</p>
-              <p className="font-semibold text-gray-800">{selectie.perceelnummer}</p>
-            </div>
-          )}
-          {selectie.aantalAdressen && selectie.aantalAdressen > 1 && (
-            <div className="bg-white px-3 py-2">
-              <p className="text-gray-500 mb-0.5">Adressen op perceel</p>
-              <p className="font-semibold text-gray-800">{selectie.aantalAdressen}</p>
-            </div>
-          )}
-        </div>
+
+          {/* Detail velden */}
+          <div className="grid grid-cols-2 gap-px bg-green-100 text-xs">
+            {h?.gebouwType && (
+              <div className="bg-white px-3 py-2">
+                <p className="text-gray-500 mb-0.5">Gebouwtype</p>
+                <p className="font-semibold text-gray-800 capitalize">{h.gebouwType}</p>
+              </div>
+            )}
+            {selectie.afdeling && (
+              <div className="bg-white px-3 py-2">
+                <p className="text-gray-500 mb-0.5">Kadastrale afdeling</p>
+                <p className="font-semibold text-gray-800">{selectie.afdeling}</p>
+              </div>
+            )}
+            {selectie.perceelnummer && (
+              <div className="bg-white px-3 py-2">
+                <p className="text-gray-500 mb-0.5">Perceelnummer</p>
+                <p className="font-semibold text-gray-800">{selectie.perceelnummer}</p>
+              </div>
+            )}
+            {selectie.aantalAdressen && selectie.aantalAdressen > 1 && (
+              <div className="bg-white px-3 py-2">
+                <p className="text-gray-500 mb-0.5">Adressen op perceel</p>
+                <p className="font-semibold text-gray-800">{selectie.aantalAdressen}</p>
+              </div>
+            )}
+            {h?.kwaliteit && (
+              <div className="bg-white px-3 py-2">
+                <p className="text-gray-500 mb-0.5">Data kwaliteit</p>
+                <p className="font-semibold text-gray-800">{h.kwaliteit}</p>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Footer */}
       <p className="px-3 py-1.5 text-[10px] text-green-700 bg-green-50">
         {selectie && !selectie.error
-          ? '✓ Perceel geselecteerd · Luchtfoto & kadaster © Vlaanderen'
+          ? '✓ Perceel geselecteerd · 3D GRB & kadaster © Vlaanderen'
           : 'Luchtfoto & kadaster © Vlaanderen · Klik op het juiste perceel'}
       </p>
 

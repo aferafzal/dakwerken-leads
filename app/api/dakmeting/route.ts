@@ -6,6 +6,7 @@ const BASISREG = 'https://api.basisregisters.vlaanderen.be/v2'
 const CAPAKEY  = 'https://geo.api.vlaanderen.be/capakey/v2'
 
 const WMS_LUCHT = 'https://geo.api.vlaanderen.be/OMWRGBMRVL/wms'
+const WMS_3DGRB = 'https://geo.api.vlaanderen.be/3DGRB/wms'
 
 // Lambert72 projectie (Belgisch kadaster)
 proj4.defs(
@@ -13,8 +14,17 @@ proj4.defs(
   '+proj=lcc +lat_1=51.16667723333333 +lat_2=49.8333339 +lat_0=90 +lon_0=4.367486666666666 +x_0=150000.013 +y_0=5400088.438 +ellps=intl +towgs84=-106.868628,52.297783,-103.723893,0.336570,-0.456955,1.842183,-1.2747 +units=m +no_defs'
 )
 
+export type Hoogte3D = {
+  nokhoogte:    number | null   // HN_P99 — gebouwhoogte (nok) in meter
+  grondniveau:  number | null   // H_DTM_GEM — gemiddeld maaiveld
+  gebouwType:   string | null   // LBLTYPE — hoofdgebouw, bijgebouw, etc.
+  footprint3d:  number | null   // OPPERVL — grondoppervlak volgens 3D GRB
+  kwaliteit:    string | null   // H_KWAL — kwaliteit hoogte-data
+}
+
 export type DakmetingResultaat = {
   oppervlakte:    number | null
+  dakOppervlak:   number | null   // geschatte werkelijke dakoppervlakte (gecorrigeerd voor helling)
   gemeente:       string | null
   capakey:        string | null
   perceelnummer:  string | null
@@ -23,6 +33,7 @@ export type DakmetingResultaat = {
   luchtfotoUrl:   string | null
   lat:            number | null
   lng:            number | null
+  hoogte3d:       Hoogte3D | null
 }
 
 export type PerceelKlikResultaat = {
@@ -31,12 +42,14 @@ export type PerceelKlikResultaat = {
   afdeling:       string | null
   aantalAdressen: number | null
   oppervlakte:    number | null
+  dakOppervlak:   number | null
   gemeente:       string | null
+  hoogte3d:       Hoogte3D | null
   error?:         string
 }
 
-// GET /api/dakmeting?q=...                    → adres autocomplete suggesties
-// GET /api/dakmeting?adres=...                → DakmetingResultaat
+// GET /api/dakmeting?q=...                       → adres autocomplete suggesties
+// GET /api/dakmeting?adres=...                   → DakmetingResultaat
 // GET /api/dakmeting?click_lat=...&click_lng=... → PerceelKlikResultaat
 export async function GET(req: NextRequest) {
   const q         = req.nextUrl.searchParams.get('q')
@@ -68,9 +81,9 @@ async function suggesties(q: string) {
 // ─── Adres → volledige meting ────────────────────────────────────────
 async function meting(adres: string): Promise<NextResponse> {
   const leeg: DakmetingResultaat = {
-    oppervlakte: null, gemeente: null, capakey: null,
+    oppervlakte: null, dakOppervlak: null, gemeente: null, capakey: null,
     perceelnummer: null, afdeling: null, aantalAdressen: null,
-    luchtfotoUrl: null, lat: null, lng: null,
+    luchtfotoUrl: null, lat: null, lng: null, hoogte3d: null,
   }
 
   try {
@@ -87,7 +100,6 @@ async function meting(adres: string): Promise<NextResponse> {
     const x: number          = loc.Location?.X_Lambert72
     const y: number          = loc.Location?.Y_Lambert72
 
-    // WGS84 coördinaten voor de kaart
     const lat: number | null = loc.Location?.Lat_WGS84 ?? null
     const lng: number | null = loc.Location?.Lon_WGS84 ?? null
 
@@ -97,13 +109,20 @@ async function meting(adres: string): Promise<NextResponse> {
       ? `${WMS_LUCHT}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image/png&LAYERS=Ortho&STYLES=&CRS=EPSG:31370&BBOX=${Math.round(x - 40)},${Math.round(y - 40)},${Math.round(x + 40)},${Math.round(y + 40)}&WIDTH=500&HEIGHT=500`
       : null
 
-    const [oppervlakte, capaInfo] = await Promise.all([
+    // Alle data-ophaling parallel
+    const [oppervlakte, capaInfo, hoogte3d] = await Promise.all([
       berekenOppervlakte(postcode, huisnummer, straat),
       x && y ? getCapakey(x, y) : Promise.resolve(null),
+      x && y ? get3DGrbInfo(x, y) : Promise.resolve(null),
     ])
 
+    // Geschatte dakoppervlakte met hellingcorrectie
+    const footprint = oppervlakte ?? hoogte3d?.footprint3d ?? null
+    const dakOppervlak = berekenDakOppervlak(footprint, hoogte3d?.nokhoogte ?? null)
+
     return NextResponse.json({
-      oppervlakte,
+      oppervlakte: footprint,
+      dakOppervlak,
       gemeente,
       capakey:        capaInfo?.capakey        ?? null,
       perceelnummer:  capaInfo?.perceelnummer  ?? null,
@@ -112,6 +131,7 @@ async function meting(adres: string): Promise<NextResponse> {
       luchtfotoUrl,
       lat,
       lng,
+      hoogte3d,
     } satisfies DakmetingResultaat)
   } catch {
     return NextResponse.json(leeg)
@@ -121,32 +141,131 @@ async function meting(adres: string): Promise<NextResponse> {
 // ─── Klik op kaart → perceelinfo ─────────────────────────────────────
 async function perceelKlik(lat: number, lng: number): Promise<NextResponse> {
   try {
-    // WGS84 → Lambert72
     const [x, y] = proj4('EPSG:4326', 'EPSG:31370', [lng, lat])
 
-    const [capaInfo, oppervlakte] = await Promise.all([
+    const [capaInfo, oppervlakte, hoogte3d] = await Promise.all([
       getCapakey(x, y),
       getGebouwOppervlakteXY(x, y),
+      get3DGrbInfo(x, y),
     ])
 
     if (!capaInfo) {
       return NextResponse.json({ error: 'Geen perceel gevonden op deze locatie' } as PerceelKlikResultaat)
     }
 
-    // Als oppervlakte niet gevonden via XY, probeer via capakey
     const opp = oppervlakte ?? (capaInfo.capakey ? await getGebouwOppervlakte(capaInfo.capakey) : null)
+    const footprint = opp ?? hoogte3d?.footprint3d ?? null
+    const dakOppervlak = berekenDakOppervlak(footprint, hoogte3d?.nokhoogte ?? null)
 
     return NextResponse.json({
       capakey:        capaInfo.capakey,
       perceelnummer:  capaInfo.perceelnummer,
       afdeling:       capaInfo.afdeling,
       aantalAdressen: capaInfo.aantalAdressen,
-      oppervlakte:    opp,
+      oppervlakte:    footprint,
+      dakOppervlak,
       gemeente:       capaInfo.gemeente ?? null,
+      hoogte3d,
     } satisfies PerceelKlikResultaat)
   } catch {
     return NextResponse.json({ error: 'Fout bij opzoeken perceel' } as PerceelKlikResultaat)
   }
+}
+
+// ─── 3D GRB — hoogte en gebouwinfo via WMS GetFeatureInfo ────────────
+
+async function get3DGrbInfo(x: number, y: number): Promise<Hoogte3D | null> {
+  try {
+    const delta = 40 // 80m venster
+    const url = `${WMS_3DGRB}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetFeatureInfo` +
+      `&LAYERS=GRBGEBL1D2&QUERY_LAYERS=GRBGEBL1D2` +
+      `&INFO_FORMAT=${encodeURIComponent('application/geo+json')}` +
+      `&CRS=EPSG:31370` +
+      `&BBOX=${Math.round(x - delta)},${Math.round(y - delta)},${Math.round(x + delta)},${Math.round(y + delta)}` +
+      `&WIDTH=101&HEIGHT=101&I=50&J=50&FEATURE_COUNT=5`
+
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const data = await res.json()
+
+    const features = data?.features
+    if (!Array.isArray(features) || features.length === 0) return null
+
+    // Pak het dichtstbijzijnde hoofdgebouw, of anders het eerste resultaat
+    const hoofd = features.find(
+      (f: { properties?: { ENTITEIT?: string } }) => f.properties?.ENTITEIT === 'Gbg'
+    ) ?? features[0]
+    const p = hoofd.properties
+    if (!p) return null
+
+    return {
+      nokhoogte:   parseVlaamsGetal(p.HN_P99)   ?? parseVlaamsGetal(p.HN_MAX),
+      grondniveau: parseVlaamsGetal(p.H_DTM_GEM) ?? parseVlaamsGetal(p.H_DTM_MIN),
+      gebouwType:  p.LBLTYPE ?? null,
+      footprint3d: parseVlaamsGetal(p.OPPERVL),
+      kwaliteit:   p.H_KWAL ?? null,
+    }
+  } catch {
+    return null
+  }
+}
+
+/** Parse getal dat ofwel een JSON number ofwel een string met komma als decimaal is */
+function parseVlaamsGetal(val: unknown): number | null {
+  if (val == null) return null
+  if (typeof val === 'number') return isNaN(val) ? null : Math.round(val * 100) / 100
+  if (typeof val === 'string') {
+    const cleaned = val.replace(',', '.')
+    const num = parseFloat(cleaned)
+    return isNaN(num) ? null : Math.round(num * 100) / 100
+  }
+  return null
+}
+
+// ─── Dakoppervlakte schatting met hellingcorrectie ───────────────────
+
+/**
+ * Schat werkelijke dakoppervlakte op basis van footprint + nokhoogte.
+ *
+ * Zonder hoogte: geeft footprint terug (= minimum).
+ * Met hoogte: corrigeert voor gemiddelde dakhelling.
+ *
+ * Heuristiek:
+ *  - nokhoogte < 5m  → vermoedelijk plat dak / laagbouw → factor ~1.05
+ *  - nokhoogte 5-8m  → gemiddeld hellend dak (25-30°)   → factor ~1.15
+ *  - nokhoogte 8-12m → steil hellend dak (35-45°)       → factor ~1.30
+ *  - nokhoogte > 12m → hoog gebouw, vaak plat dak        → factor ~1.05
+ *
+ * Bij hoge gebouwen (>12m) met klein grondvlak (<150m²) is het
+ * waarschijnlijk een smal huis met steil dak → hogere factor.
+ */
+function berekenDakOppervlak(
+  footprint: number | null,
+  nokhoogte: number | null
+): number | null {
+  if (!footprint) return null
+  if (!nokhoogte) return footprint // geen hoogte → geef footprint terug
+
+  let factor: number
+
+  if (nokhoogte > 12 && footprint > 150) {
+    // Groot hoog gebouw → waarschijnlijk plat dak (appartementsblok)
+    factor = 1.05
+  } else if (nokhoogte > 12 && footprint <= 150) {
+    // Klein hoog gebouw → smal huis met steil dak
+    factor = 1.35
+  } else if (nokhoogte >= 8) {
+    // Typisch Vlaamse woning met steile kap
+    factor = 1.30
+  } else if (nokhoogte >= 5) {
+    // Gemiddeld hellend dak
+    factor = 1.15
+  } else {
+    // Laagbouw / plat dak
+    factor = 1.05
+  }
+
+  return Math.round(footprint * factor)
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -173,7 +292,6 @@ async function berekenOppervlakte(
   }
 }
 
-/** Gebouwoppervlakte ophalen via capakey */
 async function getGebouwOppervlakte(capakey: string): Promise<number | null> {
   try {
     const gebouwenRes = await fetch(`${BASISREG}/gebouwen?capakey=${encodeURIComponent(capakey)}`)
@@ -188,10 +306,8 @@ async function getGebouwOppervlakte(capakey: string): Promise<number | null> {
   }
 }
 
-/** Gebouwoppervlakte ophalen via Lambert72 XY (zoekt dichtstbijzijnde gebouw) */
 async function getGebouwOppervlakteXY(x: number, y: number): Promise<number | null> {
   try {
-    // Zoek gebouwen in een straal van ~30m rond het punt
     const gebouwenRes = await fetch(
       `${BASISREG}/gebouwen?status=gerealiseerd&limit=1` +
       `&boundingBox.lowerLeft=${Math.round(x - 30)},${Math.round(y - 30)}` +
