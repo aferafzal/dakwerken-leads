@@ -123,7 +123,7 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
       className="rounded-2xl bg-white p-6 shadow-lg ring-1 ring-gray-200 space-y-5"
       noValidate
     >
-      <h3 className="text-xl font-bold text-gray-900">Gratis offerte aanvragen</h3>
+      <h3 className="text-xl font-bold text-gray-900">Gratis dakrapport aanvragen</h3>
 
       {/* Naam */}
       <div>

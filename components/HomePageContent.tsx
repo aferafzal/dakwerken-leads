@@ -167,7 +167,7 @@ export default function HomePageContent() {
                 visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] } },
               }}
             >
-              Dakwerken · Oost-Vlaanderen
+              Gratis dakrapport · Oost-Vlaanderen
             </motion.p>
 
             {/* ── CHANGED: new headline ── */}
@@ -178,8 +178,8 @@ export default function HomePageContent() {
                 visible: { opacity: 1, y: 0, transition: { duration: 1.0, ease: [0.16, 1, 0.3, 1] } },
               }}
             >
-              Uw dak in{' '}
-              <span style={{ color: 'hsl(25 95% 53%)' }}>goede handen</span>
+              Ontdek alles over{' '}
+              <span style={{ color: 'hsl(25 95% 53%)' }}>uw eigen dak</span>
             </motion.h1>
 
             {/* ── CHANGED: new subheadline ── */}
@@ -190,7 +190,7 @@ export default function HomePageContent() {
                 visible: { opacity: 1, y: 0, transition: { duration: 0.9, ease: [0.16, 1, 0.3, 1] } },
               }}
             >
-              Snelle digitale meting&nbsp;&bull;&nbsp;Accurate offerte in minuten&nbsp;&bull;&nbsp;Lokale expertise in Oost-Vlaanderen
+              Volledig informatief rapport&nbsp;&bull;&nbsp;Dakoppervlakte, premies en kostenindicatie&nbsp;&bull;&nbsp;Gegevens via 3D GRB Vlaanderen
             </motion.p>
 
             {/* ── CHANGED: new CTA styles ── */}
@@ -206,7 +206,7 @@ export default function HomePageContent() {
                 onClick={() => setFormOpen(true)}
                 className="inline-flex items-center justify-center gap-2 font-bold px-9 py-4 rounded-2xl text-sm bg-white text-black hover:bg-white/90 transition-all"
               >
-                Bereken je dak
+                Start gratis dakrapport
               </button>
 
               {/* Secondary: glass + WhatsApp icon */}
@@ -218,7 +218,7 @@ export default function HomePageContent() {
                 style={{ background: 'rgba(255,255,255,0.09)', border: '1px solid rgba(255,255,255,0.18)' }}
               >
                 <WhatsAppIcon className="w-4 h-4" style={{ color: '#25D366' }} />
-                Chat met expert
+                Chat met dakexpert
               </a>
             </motion.div>
           </motion.div>
@@ -256,7 +256,7 @@ export default function HomePageContent() {
                 style={{ color: 'hsl(25 95% 53%)' }}>02 — Werkwijze</p>
               <h2 className="text-4xl sm:text-5xl font-black leading-tight max-w-md"
                 style={{ color: 'hsl(222 47% 11%)' }}>
-                Van adres tot offerte in 3 stappen
+                Van adres tot volledig rapport in 3 stappen
               </h2>
             </div>
 
@@ -264,9 +264,9 @@ export default function HomePageContent() {
               {/* Stappen */}
               <div className="space-y-9">
                 {[
-                  { nr: '01', t: 'Adres invoeren', d: 'Vul het adres van uw woning in. Het systeem lokaliseert uw dak via satellietdata.' },
-                  { nr: '02', t: 'Digitale dakmeting', d: 'Binnen seconden een nauwkeurig 3D-model met oppervlakte, helling en daklengte.' },
-                  { nr: '03', t: 'Offerte ontvangen', d: 'Een professionele offerte op maat — in uw mailbox binnen 2 uur op werkdagen.' },
+                  { nr: '01', t: 'Adres invoeren', d: 'Vul het adres van uw woning in. We tonen direct de luchtfoto en het kadasterperceel.' },
+                  { nr: '02', t: 'Klik op uw dak', d: 'Selecteer uw woning op de kaart. We berekenen oppervlakte, daktype en hoogte uit officiële Vlaamse data.' },
+                  { nr: '03', t: 'Ontvang uw rapport', d: 'Volledig dakrapport per email: aandachtspunten, mogelijke premies en kostenindicatie.' },
                 ].map((s, i) => (
                   <div key={i} className="flex gap-5" style={{ transitionDelay: `${i * 0.12}s` }}>
                     <div className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center"
@@ -387,7 +387,7 @@ export default function HomePageContent() {
           <div className={`${contentCls(3)} max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24`}>
             <div className="mb-14">
               <p className="text-xs font-semibold tracking-[0.2em] uppercase mb-3"
-                style={{ color: 'hsl(25 95% 53%)' }}>04 — Over ons</p>
+                style={{ color: 'hsl(25 95% 53%)' }}>04 — Vertrouwen</p>
               <h2 className="text-4xl sm:text-5xl font-black leading-tight max-w-md"
                 style={{ color: '#fff' }}>
                 Meer dan 500 tevreden klanten
@@ -396,7 +396,7 @@ export default function HomePageContent() {
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-14">
               {[
-                { t: 'Digitale precisie',  d: 'Exacte metingen via satellietdata. Geen schatting, geen surprises.' },
+                { t: 'Officiële Vlaamse data',  d: 'Gegevens uit Basisregisters, 3D GRB en Capakey. Geen schattingen — werkelijke kadasterdata.' },
                 { t: 'Binnen 2 uur',       d: 'Offerte in uw mailbox nog dezelfde dag. U beslist op uw tempo.' },
                 { t: 'Lokale vakmannen',   d: 'Gecertificeerde dakwerkers in heel Oost-Vlaanderen. Snel ter plaatse.' },
                 { t: '10 jaar garantie',   d: 'Wij staan 10 jaar garant voor elk uitgevoerd werk.' },
@@ -418,7 +418,7 @@ export default function HomePageContent() {
                 className="inline-flex items-center gap-2 font-bold px-10 py-4 rounded-xl text-sm transition-all"
                 style={{ background: 'hsl(25 95% 53%)', color: '#fff' }}
               >
-                Bereken uw dak gratis →
+                Vraag uw gratis dakrapport →
               </button>
               <p className="mt-3 text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
                 Geen verplichtingen. Gratis en vrijblijvend.
