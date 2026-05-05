@@ -37,18 +37,34 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 
 def parse_multipart_wcs(content: bytes) -> bytes:
-    """WCS 2.0 GetCoverage geeft multipart MIME terug. Extract de TIFF-binary."""
-    # Zoek naar "Content-Type: image/tiff" gevolgd door dubbele newline,
-    # daarna komt de binary tot de volgende "--" boundary.
-    match = re.search(rb"Content-Type:\s*image/tiff\s*\r?\n\r?\n", content)
-    if not match:
-        # Fallback — sommige servers gebruiken andere boundary
-        match = re.search(rb"image/tiff[^\n]*\r?\n\r?\n", content)
-    if not match:
-        raise ValueError("Geen TIFF-deel gevonden in multipart response")
-    tiff_start = match.end()
-    # Vind volgende boundary (begint met "--")
-    boundary_match = re.search(rb"\r?\n--", content[tiff_start:])
+    """WCS 2.0 GetCoverage geeft multipart MIME terug. Extract de TIFF-binary.
+
+    Format:
+        --wcs
+        Content-Type: text/xml
+        ... GML metadata ...
+        --wcs
+        Content-Type: image/tiff
+        Content-Description: coverage data
+        Content-Transfer-Encoding: binary
+        Content-ID: 1.tif
+        Content-Disposition: inline
+
+        <TIFF binary>
+        --wcs--
+    """
+    # Vind start van tiff-sectie
+    ct_match = re.search(rb"Content-Type:\s*image/tiff", content)
+    if not ct_match:
+        raise ValueError("Geen Content-Type: image/tiff gevonden")
+    # Skip alle headers van dit MIME-deel — eindigen op blanco regel (\n\n of \r\n\r\n)
+    after_ct = ct_match.end()
+    blank_line = re.search(rb"\r?\n\r?\n", content[after_ct:])
+    if not blank_line:
+        raise ValueError("Geen scheiding tussen headers en TIFF-data")
+    tiff_start = after_ct + blank_line.end()
+    # TIFF eindigt voor volgende boundary "--wcs"
+    boundary_match = re.search(rb"\r?\n--wcs", content[tiff_start:])
     tiff_end = tiff_start + boundary_match.start() if boundary_match else len(content)
     return content[tiff_start:tiff_end]
 
@@ -227,7 +243,7 @@ def main():
         return 1
 
     mesh = trimesh.Trimesh(vertices=np.array(vertices), faces=np.array(faces))
-    mesh.fix_normals()
+    # Skip fix_normals (vereist scipy); voor PoC niet nodig
     out_path = OUTPUT_DIR / f"{meting['capakey'].replace('/', '_')}.glb"
     mesh.export(str(out_path))
     print(f"\n✅ Export: {out_path}")
