@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, id: inserted?.id })
     } catch (err) {
       console.error('[funnel/step:email]', err)
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = err instanceof Error ? err.message : (typeof err === 'object' ? JSON.stringify(err) : String(err))
       return NextResponse.json({ error: 'Opslaan mislukt', detail: msg }, { status: 500 })
     }
   }
@@ -85,7 +85,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true })
     } catch (err) {
       console.error('[funnel/step:vragenlijst]', err)
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = err instanceof Error ? err.message : (typeof err === 'object' ? JSON.stringify(err) : String(err))
       return NextResponse.json({ error: 'Update mislukt', detail: msg }, { status: 500 })
     }
   }
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, id: updated?.id })
     } catch (err) {
       console.error('[funnel/step:telefoon]', err)
-      const msg = err instanceof Error ? err.message : String(err)
+      const msg = err instanceof Error ? err.message : (typeof err === 'object' ? JSON.stringify(err) : String(err))
       return NextResponse.json({ error: 'Update mislukt', detail: msg }, { status: 500 })
     }
   }
