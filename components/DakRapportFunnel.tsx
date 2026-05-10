@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import type { DakmetingResultaat } from '@/app/api/dakmeting/route'
 import type { PerceelSelectie } from './DakKaart'
@@ -8,8 +8,11 @@ import {
   bouwjaarLabels,
   dakwerkenLabels,
   lekkageLabels,
+  typeWerkenLabels,
   type FunnelStapVragenlijst,
 } from '@/lib/validations'
+
+type TypeWerk = NonNullable<FunnelStapVragenlijst['type_werken']>[number]
 
 const DakKaart = dynamic(() => import('./DakKaart'), { ssr: false })
 
@@ -26,6 +29,9 @@ const STAP_LABELS: Record<Stap, string> = {
 }
 
 const VOORTGANG: Stap[] = ['adres', 'scan', 'preview', 'email', 'vragenlijst', 'telefoon', 'klaar']
+
+// Steppen waar 3D-model als compacte preview blijft staan (na de eerste keer)
+const TOON_3D_PREVIEW: Stap[] = ['email', 'vragenlijst', 'telefoon']
 
 function genSessionId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
@@ -55,6 +61,20 @@ export default function DakRapportFunnel() {
   const [bouwjaar, setBouwjaar] = useState<FunnelStapVragenlijst['bouwjaar']>(undefined)
   const [laatsteWerken, setLaatsteWerken] = useState<FunnelStapVragenlijst['laatste_dakwerken']>(undefined)
   const [lekkage, setLekkage] = useState<FunnelStapVragenlijst['lekkage_recent']>(undefined)
+  const [typeWerken, setTypeWerken] = useState<TypeWerk[]>([])
+
+  function toggleTypeWerk(t: TypeWerk) {
+    setTypeWerken((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t])
+  }
+
+  // LOD2 3D-model
+  const [lod2Status, setLod2Status] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [lod2Url, setLod2Url] = useState<string | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [])
 
   // Telefoon-stap
   const [naam, setNaam] = useState('')
@@ -113,8 +133,63 @@ export default function DakRapportFunnel() {
     setPerceelSelectie(data)
   }
 
-  function naarPreview() {
+  async function naarPreview() {
     setStap('preview')
+
+    const capakey = perceelSelectie?.capakey ?? meting?.capakey
+    const grenzen = perceelSelectie?.gebouwen?.[0]?.grenzen ?? []
+    if (!capakey || grenzen.length === 0) return
+
+    setLod2Status('loading')
+    setLod2Url(null)
+
+    try {
+      const res = await fetch('/api/lod2/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          capakey,
+          footprint_wgs84: grenzen,
+          nokhoogte: nokhoogte ?? undefined,
+          gebouwType: daktype ?? undefined,
+        }),
+      })
+      const data = await res.json()
+
+      if (data.status === 'done' && data.url) {
+        setLod2Url(data.url)
+        setLod2Status('done')
+        return
+      }
+    } catch {
+      setLod2Status('error')
+      return
+    }
+
+    // Polling elke 10s totdat Blob klaar is
+    const safe = (perceelSelectie?.capakey ?? meting?.capakey ?? '').replace(/\//g, '_')
+    const interval = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/lod2/status/${encodeURIComponent(safe)}`)
+        const d = await r.json()
+        if (d.status === 'done' && d.url) {
+          setLod2Url(d.url)
+          setLod2Status('done')
+          clearInterval(interval)
+          pollRef.current = null
+        }
+      } catch { /* stil falen */ }
+    }, 10_000)
+    pollRef.current = interval
+
+    // Geef op na 5 minuten
+    setTimeout(() => {
+      if (pollRef.current === interval) {
+        clearInterval(interval)
+        pollRef.current = null
+        setLod2Status((s) => (s === 'loading' ? 'error' : s))
+      }
+    }, 300_000)
   }
 
   // ── API: Email-stap (status='warm') ─────────────────────────────
@@ -144,6 +219,8 @@ export default function DakRapportFunnel() {
               nokhoogte,
               daktype,
               aantalGebouwen,
+              lat: meting?.lat ?? null,
+              lng: meting?.lng ?? null,
             },
           },
         }),
@@ -167,7 +244,7 @@ export default function DakRapportFunnel() {
         body: JSON.stringify({
           stap: 'vragenlijst',
           sessionId,
-          data: { bouwjaar, laatste_dakwerken: laatsteWerken, lekkage_recent: lekkage },
+          data: { bouwjaar, laatste_dakwerken: laatsteWerken, lekkage_recent: lekkage, type_werken: typeWerken.length ? typeWerken : undefined },
         }),
       })
     } catch { /* niet kritiek */ }
@@ -209,12 +286,35 @@ export default function DakRapportFunnel() {
   const stapIndex = VOORTGANG.indexOf(stap)
   const voortgang = ((stapIndex + 1) / VOORTGANG.length) * 100
 
+  // Terug-knop: gaat één stap terug, behalve op 'adres' en 'klaar'
+  const vorigeStap: Stap | null =
+    stap === 'adres' || stap === 'klaar' ? null : VOORTGANG[stapIndex - 1] ?? null
+
+  function gaTerug() {
+    if (vorigeStap) setStap(vorigeStap)
+  }
+
+  const toonCompactePreview =
+    TOON_3D_PREVIEW.includes(stap) && lod2Status === 'done' && lod2Url
+
   return (
     <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden">
-      {/* Voortgangsbalk */}
+      {/* Voortgangsbalk + terug-knop */}
       <div className="px-5 pt-5 pb-3 border-b border-gray-100">
-        <div className="flex justify-between text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
-          <span>Stap {stapIndex + 1} van {VOORTGANG.length}</span>
+        <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
+          <div className="flex items-center gap-2">
+            {vorigeStap && (
+              <button
+                type="button"
+                onClick={gaTerug}
+                className="text-gray-500 hover:text-green-700 transition-colors"
+                aria-label="Vorige stap"
+              >
+                ← Vorige
+              </button>
+            )}
+            <span>Stap {stapIndex + 1} van {VOORTGANG.length}</span>
+          </div>
           <span className="text-green-700">{STAP_LABELS[stap]}</span>
         </div>
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -224,6 +324,20 @@ export default function DakRapportFunnel() {
           />
         </div>
       </div>
+
+      {/* Compact 3D-preview die meereist door de funnel */}
+      {toonCompactePreview && (
+        <div className="px-5 pt-3">
+          <div className="rounded-lg overflow-hidden bg-gray-900 border border-gray-200" style={{ height: 140 }}>
+            <iframe
+              src={`/lod2-viewer.html?glb=${encodeURIComponent(lod2Url!)}&lat=${meting?.lat ?? ''}&lng=${meting?.lng ?? ''}`}
+              className="w-full h-full border-0"
+              title="3D Dakmodel"
+              loading="lazy"
+            />
+          </div>
+        </div>
+      )}
 
       <div className="p-6 sm:p-8">
         {/* ─── Stap 1 — Adres ─── */}
@@ -354,6 +468,32 @@ export default function DakRapportFunnel() {
               </div>
               <h2 className="text-xl font-bold text-gray-900">Uw dak in cijfers</h2>
             </div>
+
+            {/* ─── 3D viewer ─── */}
+            {lod2Status !== 'idle' && (
+              <div className="w-full rounded-xl overflow-hidden bg-gray-900" style={{ height: 280 }}>
+                {lod2Status === 'loading' && (
+                  <div className="h-full flex flex-col items-center justify-center gap-2 text-white text-sm">
+                    <span className="inline-block w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>3D dakmodel wordt berekend…</span>
+                    <span className="text-xs opacity-50">30–90 seconden</span>
+                  </div>
+                )}
+                {lod2Status === 'done' && lod2Url && (
+                  <iframe
+                    src={`/lod2-viewer.html?glb=${encodeURIComponent(lod2Url)}&lat=${meting?.lat ?? ''}&lng=${meting?.lng ?? ''}`}
+                    className="w-full h-full border-0"
+                    title="3D Dakmodel"
+                    loading="lazy"
+                  />
+                )}
+                {lod2Status === 'error' && (
+                  <div className="h-full flex items-center justify-center text-gray-500 text-sm">
+                    3D model kon niet worden geladen
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-xl bg-green-700 text-white p-4">
@@ -522,6 +662,35 @@ export default function DakRapportFunnel() {
               </div>
             </div>
 
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-1">Welke werken overweegt u?</p>
+              <p className="text-xs text-gray-500 mb-2">Meerdere mogelijk — helpt ons het juiste advies te geven.</p>
+              <div className="grid grid-cols-1 gap-2">
+                {(Object.entries(typeWerkenLabels) as [TypeWerk, string][]).map(([val, label]) => {
+                  const checked = typeWerken.includes(val)
+                  return (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => toggleTypeWerk(val)}
+                      className={`text-sm py-2.5 px-3 rounded-lg border text-left transition-colors flex items-center gap-2 ${
+                        checked
+                          ? 'border-green-600 bg-green-50 text-green-800 font-semibold'
+                          : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className={`inline-block w-4 h-4 rounded border-2 flex-shrink-0 ${checked ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
+                        {checked && (
+                          <svg viewBox="0 0 20 20" fill="white" className="w-full h-full"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
+                        )}
+                      </span>
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-2">
               <button
                 onClick={slaVragenlijstOver}
@@ -630,6 +799,15 @@ export default function DakRapportFunnel() {
                 Onze dakexpert belt u binnen <strong>30 minuten</strong> op {telefoon}.
               </p>
             </div>
+
+            <a
+              href={`/rapport/${sessionId}`}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex items-center gap-2 rounded-lg bg-green-700 px-5 py-3 text-sm font-semibold text-white hover:bg-green-800 transition-colors"
+            >
+              📄 Bekijk uw dakrapport
+            </a>
 
             <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-left">
               <p className="text-xs font-semibold uppercase tracking-wider text-green-800 mb-1">📧 Inbox check</p>

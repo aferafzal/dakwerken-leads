@@ -47,9 +47,13 @@ export const funnelStapEmail = z.object({
 
 /** Stap 2 — Optionele vragenlijst → status 'engaged' */
 export const funnelStapVragenlijst = z.object({
-  bouwjaar: z.enum(['voor_1980', '1980_2000', '2000_2015', 'na_2015']).optional(),
+  bouwjaar: z.enum(['voor_1980', '1980_2000', '2000_2015', 'na_2015', 'onbekend']).optional(),
   laatste_dakwerken: z.enum(['nooit', 'minder_5j', 'tussen_5_15j', 'meer_15j']).optional(),
   lekkage_recent: z.enum(['ja', 'nee', 'niet_zeker']).optional(),
+  type_werken: z.array(z.enum([
+    'pannen', 'isolatie', 'plat_dak', 'dakgoten',
+    'lekkage_onderzoek', 'totaalrenovatie', 'advies',
+  ])).optional(),
 })
 
 /** Stap 3 — Telefoon + naam + probleem → status 'hot' */
@@ -76,6 +80,7 @@ export const bouwjaarLabels: Record<NonNullable<FunnelStapVragenlijst['bouwjaar'
   '1980_2000': '1980 – 2000',
   '2000_2015': '2000 – 2015',
   na_2015:    'Na 2015',
+  onbekend:   'Onbekend',
 }
 
 export const dakwerkenLabels: Record<NonNullable<FunnelStapVragenlijst['laatste_dakwerken']>, string> = {
@@ -89,4 +94,14 @@ export const lekkageLabels: Record<NonNullable<FunnelStapVragenlijst['lekkage_re
   ja:         'Ja',
   nee:        'Nee',
   niet_zeker: 'Niet zeker',
+}
+
+export const typeWerkenLabels: Record<NonNullable<FunnelStapVragenlijst['type_werken']>[number], string> = {
+  pannen:            'Pannen of leien vervangen',
+  isolatie:          'Dak isoleren',
+  plat_dak:          'Plat dak vernieuwen (EPDM/roofing)',
+  dakgoten:          'Dakgoten onderhoud/vervanging',
+  lekkage_onderzoek: 'Lekkage onderzoeken',
+  totaalrenovatie:   'Volledige dakrenovatie',
+  advies:            'Nog niet zeker, eerst advies',
 }

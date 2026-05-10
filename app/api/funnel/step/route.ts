@@ -77,6 +77,7 @@ export async function POST(request: Request) {
           bouwjaar:          d.bouwjaar          ?? null,
           laatste_dakwerken: d.laatste_dakwerken ?? null,
           lekkage_recent:    d.lekkage_recent    ?? null,
+          type_werken:       d.type_werken       ?? null,
           status:            'engaged',
         })
         .eq('session_id', sessionId)
