@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { sendLeadEmail } from '@/lib/notifications'
+import { sendLeadEmail, sendRapportEmail } from '@/lib/notifications'
 import {
   funnelStapEmail,
   funnelStapVragenlijst,
@@ -54,6 +54,16 @@ export async function POST(request: Request) {
         .single()
 
       if (error) throw error
+
+      // Email naar gebruiker met link naar /rapport/[sessionId] (niet-blokkerend)
+      sendRapportEmail({
+        email:       d.email,
+        sessionId,
+        adres:       d.adres ?? null,
+        gemeente:    d.gemeente ?? null,
+        oppervlakte: d.dakOppervlakte ?? null,
+      }).catch((err) => console.error('[funnel/step:email] rapport-mail:', err))
+
       return NextResponse.json({ success: true, id: inserted?.id })
     } catch (err) {
       console.error('[funnel/step:email]', err)

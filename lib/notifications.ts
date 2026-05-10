@@ -57,6 +57,67 @@ export async function sendLeadEmail(lead: LeadFormData & { id: string }) {
   })
 }
 
+/** Email naar de gebruiker met link naar zijn rapport. */
+export async function sendRapportEmail(opts: {
+  email: string
+  sessionId: string
+  adres: string | null
+  gemeente: string | null
+  oppervlakte: number | null
+}) {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[notifications] RESEND_API_KEY ontbreekt — skip rapport-mail')
+    return
+  }
+  const fromAddr = process.env.RESEND_FROM_EMAIL ?? 'Dakrapport <onboarding@resend.dev>'
+  const siteUrl  = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dakwerken-oostvlaanderen.be'
+  const rapportUrl = `${siteUrl}/rapport/${opts.sessionId}`
+
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  await resend.emails.send({
+    from: fromAddr,
+    to: opts.email,
+    subject: `Uw dakrapport voor ${opts.adres ?? opts.gemeente ?? 'uw woning'} is klaar`,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#111">
+        <div style="background:#15803d;color:white;padding:20px 24px;border-radius:12px 12px 0 0">
+          <p style="margin:0;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;opacity:0.8">Uw persoonlijk dakrapport</p>
+          <h1 style="margin:6px 0 0;font-size:22px">${opts.adres ?? 'Uw woning'}</h1>
+          <p style="margin:4px 0 0;opacity:0.85;font-size:14px">${opts.gemeente ?? ''}</p>
+        </div>
+        <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px">
+          <p style="font-size:15px;line-height:1.55">
+            Bedankt voor uw aanvraag. Uw <strong>volledige dakrapport</strong> is klaar en bevat:
+          </p>
+          <ul style="font-size:14px;line-height:1.7;color:#374151">
+            <li>3D-model van uw dak</li>
+            <li>Dakoppervlakte, daktype en nokhoogte</li>
+            <li>Buurtvergelijking</li>
+            <li>Indicatieve renovatiekosten</li>
+            <li>Mogelijke premies</li>
+            <li>Persoonlijke aandachtspunten</li>
+            ${opts.oppervlakte ? `<li>Schatting energiebesparing bij isolatie (uw dak: ${opts.oppervlakte} m²)</li>` : ''}
+          </ul>
+          <div style="text-align:center;margin:28px 0">
+            <a href="${rapportUrl}" style="background:#15803d;color:white;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block">
+              Bekijk uw rapport →
+            </a>
+          </div>
+          <p style="font-size:13px;color:#6b7280;line-height:1.55">
+            Heeft u vragen of wilt u een offerte op maat? Onze experts helpen u graag verder.
+            Antwoord eenvoudig op deze e-mail of bel ons.
+          </p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+          <p style="font-size:11px;color:#9ca3af;line-height:1.5">
+            Dit rapport is gebaseerd op publieke data van het Vlaams 3D GRB, Basisregisters en DHMV II LiDAR.
+            Een definitieve offerte volgt steeds na een plaatsbezoek door een gecertificeerde dakwerker.
+          </p>
+        </div>
+      </div>
+    `,
+  })
+}
+
 export function buildWhatsAppUrl(phone: string, lead: LeadFormData): string {
   const tekst = `Nieuwe aanvraag dakwerken!\n\nNaam: ${lead.naam}\nTelefoon: ${lead.telefoon}\nGemeente: ${lead.gemeente}\nProbleem: ${probleemLabels[lead.probleem]}\nUrgentie: ${lead.urgentie}/5`
   return `https://wa.me/${phone}?text=${encodeURIComponent(tekst)}`
