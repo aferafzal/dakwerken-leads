@@ -137,22 +137,30 @@ export default function DakRapportFunnel() {
     setStap('preview')
 
     const capakey = perceelSelectie?.capakey ?? meting?.capakey
-    const grenzen = perceelSelectie?.gebouwen?.[0]?.grenzen ?? []
-    if (!capakey || grenzen.length === 0) return
+    const allGebouwen = perceelSelectie?.gebouwen ?? []
+    if (!capakey || allGebouwen.length === 0) return
 
     setLod2Status('loading')
     setLod2Url(null)
+
+    const gebouwenPayload = allGebouwen
+      .filter((g) => g.grenzen && g.grenzen.length >= 3)
+      .map((g) => ({
+        footprint_wgs84: g.grenzen,
+        nokhoogte: g.hoogte3d?.nokhoogte ?? null,
+        gebouwType: g.hoogte3d?.gebouwType ?? null,
+      }))
+
+    if (gebouwenPayload.length === 0) {
+      setLod2Status('error')
+      return
+    }
 
     try {
       const res = await fetch('/api/lod2/trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          capakey,
-          footprint_wgs84: grenzen,
-          nokhoogte: nokhoogte ?? undefined,
-          gebouwType: daktype ?? undefined,
-        }),
+        body: JSON.stringify({ capakey, gebouwen: gebouwenPayload }),
       })
       const data = await res.json()
 

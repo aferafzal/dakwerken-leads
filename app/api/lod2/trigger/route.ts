@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { list } from '@vercel/blob'
 
-export async function POST(req: NextRequest) {
-  const { capakey, footprint_wgs84, nokhoogte, gebouwType } = await req.json()
+type Gebouw = {
+  footprint_wgs84: [number, number][]
+  nokhoogte?: number | null
+  gebouwType?: string | null
+}
 
-  if (!capakey || !footprint_wgs84?.length) {
-    return NextResponse.json({ error: 'capakey + footprint_wgs84 vereist' }, { status: 400 })
+export async function POST(req: NextRequest) {
+  const { capakey, gebouwen } = await req.json() as { capakey?: string; gebouwen?: Gebouw[] }
+
+  if (!capakey || !gebouwen?.length) {
+    return NextResponse.json({ error: 'capakey + gebouwen vereist' }, { status: 400 })
   }
 
-  const safe = (capakey as string).replace(/\//g, '_')
+  const safe = capakey.replace(/\//g, '_')
 
-  // Check Vercel Blob cache (Vercel voegt random suffix toe vóór .glb)
+  // Check Vercel Blob cache (v4 = multi-gebouw versie)
   try {
     const { blobs } = await list({
-      prefix: `lod2/v3/${safe}`,
+      prefix: `lod2/v4/${safe}`,
       limit: 5,
       token: process.env.BLOB_READ_WRITE_TOKEN,
     })
@@ -22,10 +28,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: 'done', url: glb.url })
     }
   } catch {
-    // Blob niet gevonden of fout → ga door naar Modal trigger
+    // niet gecached → trigger Modal
   }
 
-  // Trigger Modal job (fire-and-forget)
   const modalUrl = process.env.MODAL_TRIGGER_URL
   if (!modalUrl) {
     return NextResponse.json({ error: 'MODAL_TRIGGER_URL niet geconfigureerd' }, { status: 500 })
@@ -35,7 +40,7 @@ export async function POST(req: NextRequest) {
     await fetch(modalUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ capakey, footprint_wgs84, nokhoogte, gebouwType }),
+      body: JSON.stringify({ capakey, gebouwen }),
     })
   } catch (err) {
     console.error('Modal trigger fout:', err)

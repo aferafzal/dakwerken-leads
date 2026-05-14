@@ -1,6 +1,32 @@
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { list } from '@vercel/blob'
 import { createClient } from '@/lib/supabase/server'
+
+export async function generateMetadata(
+  { params }: { params: Promise<{ sessionId: string }> },
+): Promise<Metadata> {
+  const { sessionId } = await params
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('leads')
+    .select('adres, gemeente')
+    .eq('session_id', sessionId)
+    .single<{ adres: string | null; gemeente: string | null }>()
+
+  const adres = data?.adres ?? 'uw woning'
+  const gemeente = data?.gemeente ? `, ${data.gemeente}` : ''
+
+  return {
+    title: `Dakrapport voor ${adres}${gemeente}`,
+    description: `Persoonlijk dakrapport: 3D-model, renovatiekosten, premies en aandachtspunten voor ${adres}.`,
+    robots: { index: false, follow: false }, // privacy: rapport is uniek per gebruiker
+    openGraph: {
+      title: `Dakrapport voor ${adres}`,
+      description: 'Uw persoonlijk dakrapport met 3D-model, kosten en premies.',
+    },
+  }
+}
 import {
   bouwjaarLabels,
   dakwerkenLabels,
@@ -85,7 +111,7 @@ async function findLod2Url(capakey: string | undefined): Promise<string | null> 
   const safe = capakey.replace(/\//g, '_')
   try {
     const { blobs } = await list({
-      prefix: `lod2/v3/${safe}`,
+      prefix: `lod2/v4/${safe}`,
       limit: 5,
       token: process.env.BLOB_READ_WRITE_TOKEN,
     })
