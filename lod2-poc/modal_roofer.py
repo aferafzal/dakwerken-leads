@@ -207,14 +207,24 @@ def _synthetic_mesh_abs(footprint_l72: list, nokhoogte: float, gebouwType: str |
     )
 
 
-# ─── CityJSON → mesh (absolute Lambert72, Z-up, niet gecentreerd) ──────
-def _cityjson_to_mesh(cj_path: Path):
+# ─── CityJSON → (mesh, metadata) ───────────────────────────────────────
+# Mesh in absolute Lambert72 (Z-up, niet gecentreerd).
+# Metadata bevat rf_*-attributen + per-RoofSurface oppervlakte/hoek/azimuth.
+def _parse_cityjson(cj_path: Path):
     import numpy as np
     import trimesh
 
     transform_info = None
     all_verts: list = []
     all_faces: list = []
+    face_surface_idx: list = []   # per face: index in roof_surfaces (of None)
+    rf_attrs: dict = {}
+    roof_surfaces: list = []      # per RoofSurface: azimuth, inclination, ...
+
+    def add_face(base: int, ring: list, sem_idx_for_face):
+        for i in range(1, len(ring) - 1):
+            all_faces.append([base + ring[0], base + ring[i], base + ring[i + 1]])
+            face_surface_idx.append(sem_idx_for_face)
 
     with open(cj_path) as f:
         for line in f:
@@ -237,6 +247,14 @@ def _cityjson_to_mesh(cj_path: Path):
                 base = len(all_verts)
                 all_verts.extend(v.tolist())
 
+                # Building-attributen (rf_*)
+                for co in obj.get("CityObjects", {}).values():
+                    if co.get("type") == "Building":
+                        for k, val in (co.get("attributes") or {}).items():
+                            if k.startswith("rf_"):
+                                rf_attrs[k] = val
+
+                # Geometry: kies hoogste beschikbare LOD per CityObject
                 preferred = ["2.2", "2.1", "1.3", "1.2", "0"]
                 for co in obj.get("CityObjects", {}).values():
                     geoms_by_lod: dict[str, list] = {}
@@ -246,32 +264,72 @@ def _cityjson_to_mesh(cj_path: Path):
                     chosen_lod = next((l for l in preferred if l in geoms_by_lod), None)
                     if not chosen_lod:
                         continue
+
                     for geom in geoms_by_lod[chosen_lod]:
                         gtype = geom.get("type", "")
                         bounds = geom.get("boundaries", [])
-                        surfaces: list = []
+                        semantics = geom.get("semantics") or {}
+                        sem_surfaces = semantics.get("surfaces") or []
+                        sem_values = semantics.get("values")
+
+                        # Bouw lokale index-map: lokaal sem_index → globaal roof_surfaces index
+                        local_to_global: dict[int, int] = {}
+                        for local_idx, s in enumerate(sem_surfaces):
+                            if s.get("type") == "RoofSurface":
+                                global_idx = len(roof_surfaces)
+                                local_to_global[local_idx] = global_idx
+                                roof_surfaces.append({
+                                    "azimuth": s.get("rf_azimuth"),
+                                    "inclination": s.get("rf_inclination"),
+                                    "h_roof_50p": s.get("rf_h_roof_50p"),
+                                    "area_m2": 0.0,
+                                })
+
+                        def _map_sem(local_idx):
+                            if local_idx is None:
+                                return None
+                            return local_to_global.get(local_idx)
+
                         if gtype == "Solid":
-                            for shell in bounds:
-                                surfaces.extend(shell)
+                            for shell_idx, shell in enumerate(bounds):
+                                shell_sem = (sem_values[shell_idx] if sem_values and shell_idx < len(sem_values) else None)
+                                for surf_idx, surf in enumerate(shell):
+                                    sem_idx = shell_sem[surf_idx] if (shell_sem and surf_idx < len(shell_sem)) else None
+                                    ring = surf[0] if surf else []
+                                    add_face(base, ring, _map_sem(sem_idx))
                         elif gtype in ("MultiSurface", "CompositeSurface"):
-                            surfaces = bounds
-                        for surf in surfaces:
-                            ring = surf[0] if surf else []
-                            for i in range(1, len(ring) - 1):
-                                all_faces.append([base + ring[0], base + ring[i], base + ring[i + 1]])
+                            for surf_idx, surf in enumerate(bounds):
+                                sem_idx = sem_values[surf_idx] if (sem_values and surf_idx < len(sem_values)) else None
+                                ring = surf[0] if surf else []
+                                add_face(base, ring, _map_sem(sem_idx))
 
     if not all_verts or not all_faces:
-        return None
+        return None, {}
 
-    return trimesh.Trimesh(
+    mesh = trimesh.Trimesh(
         vertices=np.array(all_verts, dtype=np.float64),
         faces=np.array(all_faces, dtype=np.int32),
         process=False,
     )
 
+    # Per-RoofSurface oppervlakte uit echte mesh-triangles
+    if roof_surfaces and len(face_surface_idx) == len(mesh.faces):
+        face_areas = mesh.area_faces  # ndarray
+        for g_idx in range(len(roof_surfaces)):
+            mask = np.array([fi == g_idx for fi in face_surface_idx], dtype=bool)
+            if mask.any():
+                roof_surfaces[g_idx]["area_m2"] = round(float(face_areas[mask].sum()), 2)
+
+    metadata = {
+        "rf_attributes": rf_attrs,
+        "roof_surfaces": roof_surfaces,
+        "total_roof_area_m2": round(sum(s["area_m2"] for s in roof_surfaces), 2),
+    }
+    return mesh, metadata
+
 
 def _run_roofer_one(footprint_l72: list, laz_path: Path, capakey: str, idx: int):
-    """Run roofer voor één gebouw, return mesh of None bij falen."""
+    """Run roofer voor één gebouw. Returns (mesh, metadata) of (None, {})."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         fp_path = tmpdir / "footprint.geojson"
@@ -298,7 +356,7 @@ def _run_roofer_one(footprint_l72: list, laz_path: Path, capakey: str, idx: int)
         )
         if result.returncode != 0:
             print(f"  roofer exit={result.returncode}: {result.stderr[-200:]}")
-            return None
+            return None, {}
 
         cj_files = (
             list(out_dir.glob("*.city.jsonl"))
@@ -306,8 +364,8 @@ def _run_roofer_one(footprint_l72: list, laz_path: Path, capakey: str, idx: int)
             or list(out_dir.glob("*.json"))
         )
         if not cj_files:
-            return None
-        return _cityjson_to_mesh(cj_files[0])
+            return None, {}
+        return _parse_cityjson(cj_files[0])
 
 
 def _mesh_height(mesh) -> float:
@@ -318,19 +376,72 @@ def _mesh_height(mesh) -> float:
 
 
 # ─── Vercel Blob upload ─────────────────────────────────────────────────
-def _upload_blob(pathname: str, data: bytes, token: str) -> str:
+def _upload_blob(pathname: str, data: bytes, token: str, content_type: str = "model/gltf-binary") -> str:
     import requests as req
     r = req.put(
         f"https://blob.vercel-storage.com/{pathname}",
         headers={
             "Authorization": f"Bearer {token}",
-            "Content-Type": "model/gltf-binary",
+            "Content-Type": content_type,
             "x-vercel-blob-add-random-suffix": "0",
         },
         data=data, timeout=60,
     )
     r.raise_for_status()
     return r.json()["url"]
+
+
+def _build_aggregate_metadata(per_building: list, sources: list) -> dict:
+    """Combineer per-gebouw metadata + bereken kwaliteitslabels voor het rapport."""
+    total_area = round(sum(m.get("total_roof_area_m2", 0) for m in per_building), 1)
+
+    roofer_metas = [m for m in per_building if m.get("source") == "roofer"]
+    avg_rmse = avg_density = avg_nodata = None
+    if roofer_metas:
+        def _avg(key: str):
+            vals = [
+                m.get("rf_attributes", {}).get(key)
+                for m in roofer_metas
+                if m.get("rf_attributes", {}).get(key) is not None
+            ]
+            return round(sum(vals) / len(vals), 3) if vals else None
+
+        avg_rmse = _avg("rf_rmse_lod22")
+        avg_density = _avg("rf_pt_density")
+        avg_nodata = _avg("rf_nodata_frac")
+
+    n_roofer = sum(1 for s in sources if s == "roofer")
+    n_syn = sum(1 for s in sources if s == "synthetic")
+
+    # Kwaliteits-label: drempel-gebaseerd, transparant
+    if n_roofer == 0:
+        quality_label = "synthetisch"
+    elif (
+        avg_rmse is not None and avg_rmse < 1.0
+        and (avg_density or 0) > 15
+        and (avg_nodata if avg_nodata is not None else 1) < 0.10
+    ):
+        quality_label = "hoog"
+    elif avg_rmse is not None and avg_rmse < 2.0 and (avg_density or 0) > 8:
+        quality_label = "gemiddeld"
+    else:
+        quality_label = "beperkt"
+
+    return {
+        "version": "v5",
+        "total_roof_area_m2": total_area,
+        "n_buildings": len(per_building),
+        "sources": sources,
+        "quality": {
+            "label": quality_label,
+            "avg_rmse_m": avg_rmse,
+            "avg_point_density": avg_density,
+            "avg_nodata_fraction": avg_nodata,
+            "n_roofer": n_roofer,
+            "n_synthetic": n_syn,
+        },
+        "per_building": per_building,
+    }
 
 
 # ─── Hoofdfunctie ───────────────────────────────────────────────────────
@@ -386,6 +497,7 @@ def generate_and_store(capakey: str, gebouwen: list) -> dict:
 
     all_meshes: list = []
     sources: list = []
+    per_building_meta: list = []
 
     for i, g in enumerate(gebouwen_l72):
         fp_l72 = g["footprint_l72"]
@@ -395,15 +507,25 @@ def generate_and_store(capakey: str, gebouwen: list) -> dict:
         cx = float(pts.mean(axis=0)[0])
         cy = float(pts.mean(axis=0)[1])
 
-        print(f"\n--- Gebouw {i + 1}/{len(gebouwen_l72)} (nok={nok}m, type={gt}) ---")
+        # Footprint-oppervlakte (shoelace) voor synthetic-meta + fallback-rapport
+        fp_arr = np.array(fp_l72)
+        if len(fp_arr) > 1 and np.allclose(fp_arr[0], fp_arr[-1]):
+            fp_arr = fp_arr[:-1]
+        footprint_area = float(0.5 * abs(np.sum(
+            fp_arr[:, 0] * np.roll(fp_arr[:, 1], -1)
+            - np.roll(fp_arr[:, 0], -1) * fp_arr[:, 1]
+        )))
+
+        print(f"\n--- Gebouw {i + 1}/{len(gebouwen_l72)} (nok={nok}m, type={gt}, opp={footprint_area:.0f}m²) ---")
 
         mesh = None
+        roofer_meta: dict = {}
         tile_url = _find_tile_url(tile_index, cx, cy)
         if tile_url:
             try:
                 laz_path = _download_tile(tile_url, Path("/cache"))
                 volume.commit()
-                mesh = _run_roofer_one(fp_l72, laz_path, capakey, i)
+                mesh, roofer_meta = _run_roofer_one(fp_l72, laz_path, capakey, i)
             except Exception as e:
                 print(f"  roofer pipeline fout: {e}")
 
@@ -412,9 +534,32 @@ def generate_and_store(capakey: str, gebouwen: list) -> dict:
             print(f"  → fallback synthetic (roofer h={h:.1f}m)")
             mesh = _synthetic_mesh_abs(fp_l72, nok, gt)
             sources.append("synthetic")
+            # Voor synthetic: geschatte dakoppervlakte via hellingscorrectie
+            if gt and "bijgebouw" in gt.lower():
+                factor = 1.05
+            elif nok < 5:
+                factor = 1.05
+            elif nok < 8:
+                factor = 1.15
+            elif nok < 12:
+                factor = 1.30
+            else:
+                factor = 1.05
+            per_building_meta.append({
+                "source": "synthetic",
+                "footprint_area_m2": round(footprint_area, 1),
+                "total_roof_area_m2": round(footprint_area * factor, 1),
+                "nokhoogte_used": nok,
+                "gebouwType_used": gt,
+                "roof_surfaces": [],
+                "rf_attributes": {},
+            })
         else:
-            print(f"  → roofer (h={h:.1f}m)")
+            print(f"  → roofer (h={h:.1f}m, {len(roofer_meta.get('roof_surfaces', []))} dakvlakken)")
             sources.append("roofer")
+            roofer_meta["source"] = "roofer"
+            roofer_meta["footprint_area_m2"] = round(footprint_area, 1)
+            per_building_meta.append(roofer_meta)
 
         if mesh is not None:
             all_meshes.append(mesh)
@@ -437,10 +582,20 @@ def generate_and_store(capakey: str, gebouwen: list) -> dict:
     combined.export(buf, file_type="glb")
     glb = buf.getvalue()
 
-    print(f"\n✅ GLB klaar: {len(glb) / 1024:.1f} KB · {len(all_meshes)} gebouwen · sources={sources}")
-    url = _upload_blob(f"lod2/v4/{safe}.glb", glb, blob_token)
-    print(f"Blob URL: {url}")
-    return {"url": url, "sources": sources, "error": None}
+    # Aggregate metadata (kwaliteit + per-gebouw + per-RoofSurface)
+    aggregate = _build_aggregate_metadata(per_building_meta, sources)
+
+    print(f"\n✅ GLB: {len(glb) / 1024:.1f} KB · {len(all_meshes)} gebouwen · "
+          f"sources={sources} · kwaliteit={aggregate['quality']['label']} · "
+          f"dakopp={aggregate['total_roof_area_m2']}m²")
+
+    glb_url = _upload_blob(f"lod2/v5/{safe}.glb", glb, blob_token)
+    meta_bytes = json.dumps(aggregate, ensure_ascii=False, indent=2).encode("utf-8")
+    meta_url = _upload_blob(f"lod2/v5/{safe}.meta.json", meta_bytes, blob_token,
+                            content_type="application/json")
+    print(f"Blob GLB:  {glb_url}")
+    print(f"Blob meta: {meta_url}")
+    return {"url": glb_url, "meta_url": meta_url, "sources": sources, "error": None}
 
 
 @app.function(image=roofer_image)

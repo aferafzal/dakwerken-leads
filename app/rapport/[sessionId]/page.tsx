@@ -106,18 +106,69 @@ function formatEur(n: number): string {
   return `€${Math.round(n).toLocaleString('nl-BE')}`
 }
 
-async function findLod2Url(capakey: string | undefined): Promise<string | null> {
-  if (!capakey) return null
+function azimuthLabel(deg: number): string {
+  // Lambert72/3D-GRB azimuth: 0=N, 90=O, 180=Z, 270=W
+  const directions = ['N', 'NO', 'O', 'ZO', 'Z', 'ZW', 'W', 'NW']
+  const idx = Math.round(((deg % 360) + 360) % 360 / 45) % 8
+  return directions[idx]
+}
+
+type RoofSurface = {
+  azimuth: number | null
+  inclination: number | null
+  h_roof_50p: number | null
+  area_m2: number
+}
+
+type PerBuildingMeta = {
+  source: 'roofer' | 'synthetic'
+  footprint_area_m2?: number
+  total_roof_area_m2?: number
+  nokhoogte_used?: number
+  gebouwType_used?: string
+  roof_surfaces?: RoofSurface[]
+  rf_attributes?: Record<string, unknown>
+}
+
+type LodMetadata = {
+  version: string
+  total_roof_area_m2: number
+  n_buildings: number
+  sources: ('roofer' | 'synthetic')[]
+  quality: {
+    label: 'hoog' | 'gemiddeld' | 'beperkt' | 'synthetisch'
+    avg_rmse_m: number | null
+    avg_point_density: number | null
+    avg_nodata_fraction: number | null
+    n_roofer: number
+    n_synthetic: number
+  }
+  per_building: PerBuildingMeta[]
+}
+
+async function findLod2(capakey: string | undefined): Promise<{ glbUrl: string | null; metadata: LodMetadata | null }> {
+  if (!capakey) return { glbUrl: null, metadata: null }
   const safe = capakey.replace(/\//g, '_')
   try {
     const { blobs } = await list({
-      prefix: `lod2/v4/${safe}`,
-      limit: 5,
+      prefix: `lod2/v5/${safe}`,
+      limit: 10,
       token: process.env.BLOB_READ_WRITE_TOKEN,
     })
-    return blobs.find((b) => b.pathname.endsWith('.glb'))?.url ?? null
+    const glbBlob = blobs.find((b) => b.pathname.endsWith('.glb'))
+    const metaBlob = blobs.find((b) => b.pathname.endsWith('.meta.json'))
+    let metadata: LodMetadata | null = null
+    if (metaBlob) {
+      try {
+        const r = await fetch(metaBlob.url, { cache: 'no-store' })
+        if (r.ok) metadata = await r.json()
+      } catch {
+        // ignore — metadata is optioneel
+      }
+    }
+    return { glbUrl: glbBlob?.url ?? null, metadata }
   } catch {
-    return null
+    return { glbUrl: null, metadata: null }
   }
 }
 
@@ -136,7 +187,6 @@ export default async function RapportPage(
   if (!lead) notFound()
 
   const dak = lead.dak_data ?? {}
-  const oppervlakte = lead.dak_oppervlakte ?? dak.oppervlakte ?? null
   const nokhoogte = dak.nokhoogte ?? null
   const daktype = dak.daktype ?? null
   const lat = dak.lat ?? null
@@ -147,8 +197,15 @@ export default async function RapportPage(
   const lekkageJa = lead.lekkage_recent === 'ja'
   const werkenLijst = lead.type_werken ?? []
 
-  // 3D model URL (kan null zijn als nog niet gegenereerd of in gat)
-  const lod2Url = await findLod2Url(dak.capakey)
+  // 3D-model + metadata (echte oppervlakte + kwaliteit + per-dakvlak data)
+  const { glbUrl: lod2Url, metadata: lod2Meta } = await findLod2(dak.capakey)
+
+  // Dakoppervlakte: liever uit metadata (echte mesh-meting) dan uit heuristiek
+  const oppervlakte =
+    lod2Meta?.total_roof_area_m2
+    ?? lead.dak_oppervlakte
+    ?? dak.oppervlakte
+    ?? null
 
   // Buurtvergelijking
   const verschil = oppervlakte ? Math.round(((oppervlakte - VL_AVG_DAK_M2) / VL_AVG_DAK_M2) * 100) : null
@@ -195,6 +252,95 @@ export default async function RapportPage(
                 />
               </div>
               <p className="text-xs text-gray-500 mt-2">Sleep om te roteren · scroll om te zoomen</p>
+            </section>
+          )}
+
+          {/* Dakvlakken-detail (alleen bij roofer) */}
+          {lod2Meta && (() => {
+            const allSurfaces = lod2Meta.per_building
+              .filter((b) => b.source === 'roofer')
+              .flatMap((b) => b.roof_surfaces ?? [])
+            if (allSurfaces.length === 0) return null
+            return (
+              <section>
+                <h2 className="text-xs uppercase tracking-widest text-green-700 font-bold mb-3">Dakvlakken — gemeten uit LiDAR</h2>
+                <div className="rounded-xl bg-gray-50 border border-gray-200 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-white border-b border-gray-200">
+                      <tr className="text-left">
+                        <th className="px-4 py-2 text-xs uppercase tracking-wider text-gray-500 font-medium">Vlak</th>
+                        <th className="px-4 py-2 text-xs uppercase tracking-wider text-gray-500 font-medium">Oppervlakte</th>
+                        <th className="px-4 py-2 text-xs uppercase tracking-wider text-gray-500 font-medium">Helling</th>
+                        <th className="px-4 py-2 text-xs uppercase tracking-wider text-gray-500 font-medium">Oriëntatie</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allSurfaces.map((s, i) => (
+                        <tr key={i} className="border-b border-gray-100 last:border-0">
+                          <td className="px-4 py-2 text-gray-700">#{i + 1}</td>
+                          <td className="px-4 py-2 font-semibold text-gray-900">{s.area_m2.toFixed(1)} m²</td>
+                          <td className="px-4 py-2 text-gray-700">{s.inclination !== null ? `${s.inclination.toFixed(0)}°` : '—'}</td>
+                          <td className="px-4 py-2 text-gray-700">
+                            {s.azimuth !== null ? `${s.azimuth.toFixed(0)}° (${azimuthLabel(s.azimuth)})` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Gemeten uit het 3D LiDAR-model. Oriëntatie en helling bepalen het zonnepotentieel en de geschatte regenwater-afvoer.
+                </p>
+              </section>
+            )
+          })()}
+
+          {/* Data-kwaliteit (transparant per signaal) */}
+          {lod2Meta && (
+            <section>
+              <h2 className="text-xs uppercase tracking-widest text-green-700 font-bold mb-3">Data-kwaliteit</h2>
+              <div className={`rounded-xl border p-5 ${
+                lod2Meta.quality.label === 'hoog' ? 'bg-emerald-50 border-emerald-200'
+                : lod2Meta.quality.label === 'gemiddeld' ? 'bg-amber-50 border-amber-200'
+                : lod2Meta.quality.label === 'beperkt' ? 'bg-orange-50 border-orange-200'
+                : 'bg-gray-50 border-gray-200'
+              }`}>
+                <div className="flex items-baseline gap-3 mb-3">
+                  <span className="text-xs uppercase tracking-widest text-gray-500">Kwaliteit</span>
+                  <span className="text-2xl font-bold capitalize">{lod2Meta.quality.label}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  {lod2Meta.quality.avg_point_density !== null && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-gray-500">Puntdichtheid</p>
+                      <p className="font-semibold">{lod2Meta.quality.avg_point_density.toFixed(1)} pt/m²</p>
+                    </div>
+                  )}
+                  {lod2Meta.quality.avg_rmse_m !== null && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-gray-500">Nauwkeurigheid</p>
+                      <p className="font-semibold">±{lod2Meta.quality.avg_rmse_m.toFixed(2)}m RMSE</p>
+                    </div>
+                  )}
+                  {lod2Meta.quality.avg_nodata_fraction !== null && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-gray-500">Coverage</p>
+                      <p className="font-semibold">{((1 - lod2Meta.quality.avg_nodata_fraction) * 100).toFixed(0)}%</p>
+                    </div>
+                  )}
+                </div>
+                {lod2Meta.quality.n_synthetic > 0 && (
+                  <p className="text-xs mt-3 leading-relaxed">
+                    <strong>Transparantie:</strong> {lod2Meta.quality.n_synthetic} van de {lod2Meta.n_buildings} gebouwen op uw perceel werd geschat (geen recente LiDAR-data beschikbaar). De andere{' '}
+                    {lod2Meta.quality.n_roofer === 1 ? 'is' : 'zijn'} gebaseerd op echte LiDAR-metingen.
+                  </p>
+                )}
+                {lod2Meta.quality.label === 'synthetisch' && (
+                  <p className="text-xs mt-3 leading-relaxed">
+                    <strong>Let op:</strong> voor deze locatie hebben we geen recente LiDAR-data van de Vlaamse overheid. Het 3D-model is een schatting op basis van de perceelgrenzen en de geregistreerde gebouwhoogte uit het 3D GRB.
+                  </p>
+                )}
+              </div>
             </section>
           )}
 

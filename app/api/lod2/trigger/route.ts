@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   // Check Vercel Blob cache (v4 = multi-gebouw versie)
   try {
     const { blobs } = await list({
-      prefix: `lod2/v4/${safe}`,
+      prefix: `lod2/v5/${safe}.glb`,
       limit: 5,
       token: process.env.BLOB_READ_WRITE_TOKEN,
     })
