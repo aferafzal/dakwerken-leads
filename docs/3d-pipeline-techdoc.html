@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Dak-modelleringspipeline — Technisch document voor LIDAR-expert</title>
+
+<!-- Prism.js voor syntax highlighting (CDN, met graceful fallback) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js" defer></script>
+
+<!-- Mermaid voor de pipeline-diagram -->
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+</script>
+
+<style>
+:root {
+  --bg: #fafaf9;
+  --surface: #ffffff;
+  --text: #1c1917;
+  --muted: #57534e;
+  --accent: #15803d;
+  --accent-light: #dcfce7;
+  --warn: #b45309;
+  --warn-light: #fef3c7;
+  --danger: #b91c1c;
+  --danger-light: #fee2e2;
+  --border: #e7e5e4;
+  --code-bg: #1e293b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 16px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--bg);
+}
+.layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+nav.toc {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1.5rem 1.25rem;
+  font-size: 0.875rem;
+}
+nav.toc h2 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: 0.75rem;
+}
+nav.toc ol { list-style: none; counter-reset: section; }
+nav.toc ol li { counter-increment: section; margin: 0.35rem 0; }
+nav.toc ol li::before { content: counter(section) ". "; color: var(--accent); font-weight: 600; }
+nav.toc a { color: var(--text); text-decoration: none; }
+nav.toc a:hover { color: var(--accent); }
+nav.toc .sub { margin-top: 1.5rem; }
+nav.toc .sub h3 { font-size: 0.7rem; text-transform: uppercase; color: var(--muted); margin: 0.5rem 0; letter-spacing: 0.08em; }
+nav.toc .sub ul { list-style: none; }
+nav.toc .sub ul li { margin: 0.25rem 0; }
+nav.toc .sub ul li a::before { content: "§ "; color: var(--muted); }
+
+main { padding: 3rem 4rem; max-width: 980px; }
+header.doc-header {
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+header.doc-header .kicker {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  font-weight: 700;
+}
+header.doc-header h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0.5rem 0;
+  line-height: 1.15;
+}
+header.doc-header .meta {
+  display: flex;
+  gap: 2rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin-top: 0.75rem;
+}
+header.doc-header .meta strong { color: var(--text); }
+
+section { margin-bottom: 3.5rem; }
+section > h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+  padding-top: 1rem;
+}
+section > h2 .num {
+  display: inline-block;
+  width: 2rem;
+  color: var(--muted);
+  font-weight: 400;
+}
+section > p.lede {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+  border-left: 3px solid var(--accent-light);
+  padding-left: 0.875rem;
+}
+h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.4rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.78rem;
+}
+p { margin-bottom: 0.75rem; }
+ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; }
+li { margin: 0.2rem 0; }
+strong { font-weight: 700; }
+code {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: #f1f5f9;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  color: #0f172a;
+}
+pre {
+  background: var(--code-bg) !important;
+  padding: 1rem 1.25rem !important;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.82rem !important;
+  line-height: 1.5 !important;
+  margin: 1rem 0;
+}
+pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+}
+th, td {
+  text-align: left;
+  padding: 0.6rem 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+th { background: #f8fafc; font-weight: 700; }
+.callout {
+  padding: 0.875rem 1.125rem;
+  border-radius: 6px;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+  border-left: 4px solid;
+}
+.callout.warn { background: var(--warn-light); border-color: var(--warn); }
+.callout.danger { background: var(--danger-light); border-color: var(--danger); }
+.callout.note { background: var(--accent-light); border-color: var(--accent); }
+.callout strong { display: block; margin-bottom: 0.25rem; }
+.callout p { margin-bottom: 0.25rem; }
+.mermaid { background: white; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin: 1.5rem 0; text-align: center; }
+.endpoint {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  background: #f1f5f9;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  display: inline-block;
+  border: 1px solid var(--border);
+  word-break: break-all;
+}
+.step {
+  border-left: 3px solid var(--accent);
+  padding: 0.5rem 0 0.5rem 1rem;
+  margin: 1rem 0;
+}
+.step .step-num {
+  display: inline-block;
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  text-align: center;
+  line-height: 1.6rem;
+  font-size: 0.85rem;
+  margin-right: 0.5rem;
+}
+.step h4 { display: inline; color: var(--text); text-transform: none; letter-spacing: 0; font-size: 1rem; }
+.appendix {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.25rem 1.5rem;
+  margin: 1.5rem 0;
+}
+.appendix h3 { margin-top: 0; color: var(--accent); }
+
+@media print {
+  .layout { display: block; }
+  nav.toc { display: none; }
+  main { padding: 1.5rem; max-width: none; }
+  pre { font-size: 0.75rem !important; }
+  section { page-break-inside: avoid; }
+  h2 { page-break-after: avoid; }
+}
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  nav.toc { position: static; height: auto; max-height: 200px; border-right: none; border-bottom: 1px solid var(--border); }
+  main { padding: 2rem 1.5rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+<nav class="toc">
+  <h2>Inhoud</h2>
+  <ol>
+    <li><a href="#arch">Overall Architecture</a></li>
+    <li><a href="#flow">Input → Output Data Flow</a></li>
+    <li><a href="#acquisition">Data-acquisitie</a></li>
+    <li><a href="#pointcloud">Point Cloud Processing</a></li>
+    <li><a href="#detection">Dakvlakdetectie &amp; 3D-modellering</a></li>
+    <li><a href="#output">Metingen &amp; Output</a></li>
+    <li><a href="#extras">Extra details</a></li>
+  </ol>
+  <div class="sub">
+    <h3>Bijlages</h3>
+    <ul>
+      <li><a href="#app-a">A — Modal trigger payload</a></li>
+      <li><a href="#app-b">B — CityJSONSequence voorbeeld</a></li>
+      <li><a href="#app-c">C — 3D GRB GetFeatureInfo</a></li>
+      <li><a href="#app-d">D — Basisregisters gebouw</a></li>
+      <li><a href="#app-e">E — Roofer CLI flags</a></li>
+      <li><a href="#app-f">F — Bekende beperkingen</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main>
+
+<header class="doc-header">
+  <div class="kicker">Technisch overlegdocument</div>
+  <h1>3D dak-modelleringspipeline<br>Architectuur, data-acquisitie en reconstructie</h1>
+  <div class="meta">
+    <span><strong>Doelpubliek:</strong> LIDAR-/photogrammetrie expert</span>
+    <span><strong>Versie:</strong> v4 (multi-gebouw)</span>
+    <span><strong>Datum:</strong> mei 2026</span>
+  </div>
+  <p style="margin-top: 1rem; color: var(--muted);">
+    Dit document beschrijft de huidige werkwijze van het programma dat een 3D-model genereert voor een
+    Belgisch adres, met als doel een externe LIDAR-expert in staat te stellen om gericht feedback te
+    geven op zwakke schakels (LiDAR-keuzes, classificatieconventies, reconstructie-algoritme,
+    coverage-strategie).
+  </p>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--                       1. OVERALL ARCHITECTURE                            -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="arch">
+  <h2><span class="num">1.</span> Overall Architecture</h2>
+  <p class="lede">
+    Drie executie-omgevingen werken samen: een Next.js front-end op Vercel, een serverless
+    Python pipeline op Modal.com, en een browser-gebaseerde Three.js viewer. Geen eigen
+    infrastructuur of containerorkestratie buiten Modal &amp; Vercel.
+  </p>
+
+  <h3>Talen + runtimes</h3>
+  <table>
+    <thead><tr><th>Laag</th><th>Runtime</th><th>Locatie</th></tr></thead>
+    <tbody>
+      <tr><td>Front-end</td><td>Next.js 16, React 19, TypeScript</td><td>Vercel Edge (Frankfurt)</td></tr>
+      <tr><td>API-routes (Next.js)</td><td>Node.js 20 serverless functions</td><td>Vercel Functions (FRA1)</td></tr>
+      <tr><td>3D-pipeline</td><td>Python 3.12 op Linux x86_64 in Docker</td><td>Modal.com (us-east-1 default)</td></tr>
+      <tr><td>Viewer</td><td>WebGL 2 / Three.js 0.161</td><td>Client-side browser</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Python libraries</h3>
+  <p>Pip-geïnstalleerd bovenop de roofer Docker image (zie image-definitie in <code>lod2-poc/modal_roofer.py</code>):</p>
+  <table>
+    <thead><tr><th>Library</th><th>Versie</th><th>Rol</th></tr></thead>
+    <tbody>
+      <tr><td><code>numpy</code></td><td>≥2.0</td><td>Vector/mesh math, PCA voor oriented bbox</td></tr>
+      <tr><td><code>pyproj</code></td><td>≥3.7</td><td>WGS84 ↔ Lambert72 (EPSG:31370) transforms</td></tr>
+      <tr><td><code>requests</code></td><td>≥2.33</td><td>HTTP downloads (LAZ tiles, Vercel Blob uploads)</td></tr>
+      <tr><td><code>boto3</code></td><td>≥1.43</td><td>S3 anonieme listing voor tile-index</td></tr>
+      <tr><td><code>trimesh</code></td><td>≥4.12</td><td>Mesh-constructie, glTF binary export, transforms</td></tr>
+      <tr><td><code>laspy[lazrs]</code></td><td>≥2.5</td><td>COPC/LAZ reader (debug-only — productie-flow gebruikt roofer's interne LASlib reader)</td></tr>
+      <tr><td><code>fastapi</code></td><td>≥0.136</td><td>HTTP entry point voor <code>@modal.fastapi_endpoint</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Externe binary</h3>
+  <p>
+    <strong>roofer</strong> v1.0.0 (3DBAG, TU Delft) — C++ tool voor LOD 2.2 reconstructie uit
+    LiDAR + footprint. Geleverd via Docker image <code>3dgi/roofer:v1.0.0</code>. We overschrijven de
+    <code>ENTRYPOINT</code> (was <code>roofer</code> zelf, conflicteert met Modal's Python <code>-u</code> flag).
+  </p>
+
+  <h3>Modal image-definitie</h3>
+<pre><code class="language-python">roofer_image = (
+    modal.Image
+    .from_registry(
+        "3dgi/roofer:v1.0.0",
+        add_python="3.12",
+        setup_dockerfile_commands=["ENTRYPOINT []"],
+    )
+    .pip_install("boto3", "numpy", "pyproj", "requests",
+                 "trimesh", "fastapi", "laspy[lazrs]")
+)</code></pre>
+
+  <h3>Code-structuur</h3>
+  <table>
+    <thead><tr><th>Bestand</th><th>Inhoud</th></tr></thead>
+    <tbody>
+      <tr><td><code>lod2-poc/modal_roofer.py</code></td><td>Modal app: <code>generate_and_store</code> (hoofdpipeline), <code>trigger</code> (HTTP endpoint), <code>debug_roofer</code> (inspectie)</td></tr>
+      <tr><td><code>app/api/dakmeting/route.ts</code></td><td>Adres → coords + 3D GRB metadata + perceelgeometrie. Roept Geopunt, Basisregisters, Capakey, 3D GRB WMS aan.</td></tr>
+      <tr><td><code>app/api/lod2/trigger/route.ts</code></td><td>Proxy: checkt Vercel Blob cache, anders POST naar Modal endpoint</td></tr>
+      <tr><td><code>app/api/lod2/status/[capakey]/route.ts</code></td><td>Polling: leest Vercel Blob prefix <code>lod2/v4/{capakey}</code></td></tr>
+      <tr><td><code>public/lod2-viewer.html</code></td><td>Three.js viewer, leest <code>?glb=URL&amp;lat=...&amp;lng=...</code> query params</td></tr>
+      <tr><td><code>components/DakRapportFunnel.tsx</code></td><td>UI funnel met polling-state</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--                       2. DATA FLOW                                        -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="flow">
+  <h2><span class="num">2.</span> Input → Output Data Flow</h2>
+  <p class="lede">
+    Twaalf stappen van adres-input tot 3D-rendering. Per stap: exact welke input, welke
+    service/endpoint, welke transformatie, welke library/functie.
+  </p>
+
+  <div class="mermaid">
+flowchart TD
+    A[Gebruiker typt adres] -->|GET /api/dakmeting?q=| B[Geopunt Suggestion API]
+    B --> C[Adres bevestigd]
+    C -->|GET /api/dakmeting?adres=| D[Geopunt Location API]
+    D -->|Lambert72 X/Y| E[Capakey API parcel]
+    E -->|capakey| F[Basisregisters /gebouwen]
+    F -->|GML per gebouw| G[3D GRB WMS GetFeatureInfo]
+    G -->|nokhoogte, gebouwType| H[Front-end funnel POST]
+    H -->|/api/lod2/trigger| I{Vercel Blob cache?}
+    I -->|hit| Z[Return URL]
+    I -->|miss| J[Modal fastapi_endpoint]
+    J -->|spawn| K[generate_and_store]
+    K --> L[Per gebouw: WGS84→L72]
+    L --> M[Tile lookup S3 COPC]
+    M --> N[LAZ tile download + cache]
+    N --> O[roofer subprocess]
+    O -->|CityJSONSeq| P[_cityjson_to_mesh]
+    O -.->|crash/plat| Q[_synthetic_mesh_abs]
+    P --> R[Combine meshes]
+    Q --> R
+    R --> S[Center + Y-up rotatie]
+    S --> T[GLB export trimesh]
+    T --> U[Vercel Blob PUT v4/capakey.glb]
+    U --> V[Polling status → URL]
+    V --> W[Three.js GLTFLoader]
+    W --> X[WebGL render in iframe]
+  </div>
+
+  <div class="step">
+    <span class="step-num">1</span><h4>Adres autocomplete (debounced)</h4>
+    <p><strong>Input:</strong> partial adres-string (vanaf 4 tekens)</p>
+    <p><strong>Endpoint:</strong> <span class="endpoint">GET https://geo.api.vlaanderen.be/Geolocation/v4/Suggestion?q=...</span></p>
+    <p><strong>Library:</strong> client-side <code>fetch</code></p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">2</span><h4>Adres → Lambert72 + WGS84</h4>
+    <p><strong>Endpoint:</strong> <span class="endpoint">GET https://geo.api.vlaanderen.be/Geolocation/v4/Location?q=...</span></p>
+    <p><strong>Levert:</strong> <code>Location.X_Lambert72</code>, <code>Location.Y_Lambert72</code>, <code>Location.Lat_WGS84</code>, <code>Location.Lon_WGS84</code></p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">3</span><h4>Identificatie van perceel</h4>
+    <p><strong>Endpoint:</strong> <span class="endpoint">GET https://geo.api.vlaanderen.be/capakey/v2/parcel?x={X}&amp;y={Y}&amp;srs=31370</span></p>
+    <p><strong>Levert:</strong> <code>capakey</code> (vb. <code>43352E1255/00D000</code>), <code>perceelnummer</code>, <code>afdeling</code>, perceel-bounding-polygon</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">4</span><h4>Alle gebouwen op het perceel</h4>
+    <p><strong>Endpoint:</strong> <span class="endpoint">GET https://api.basisregisters.vlaanderen.be/v2/gebouwen?capakey={capakey met "-" ipv "/"}</span></p>
+    <p><strong>Per gebouw extra fetch:</strong> <code>{gebouw.detail}</code> → <code>gebouwPolygoon.geometrie.gml</code> (Lambert72 coordinaten)</p>
+    <p><strong>Library:</strong> custom GML-parser <code>extractCoordsFromGml()</code>, shoelace voor oppervlakte</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">5</span><h4>3D GRB hoogte-metadata</h4>
+    <p><strong>Endpoint:</strong> WMS GetFeatureInfo op layer <code>GRBGEBL1D2</code>:</p>
+    <pre><code class="language-bash">https://geo.api.vlaanderen.be/3DGRB/wms
+  ?SERVICE=WMS&amp;VERSION=1.3.0&amp;REQUEST=GetFeatureInfo
+  &amp;LAYERS=GRBGEBL1D2&amp;QUERY_LAYERS=GRBGEBL1D2
+  &amp;INFO_FORMAT=application/geo%2Bjson
+  &amp;CRS=EPSG:31370
+  &amp;BBOX={x-40},{y-40},{x+40},{y+40}
+  &amp;WIDTH=101&amp;HEIGHT=101&amp;I=50&amp;J=50&amp;FEATURE_COUNT=5</code></pre>
+    <p><strong>Levert:</strong> <code>HN_P99</code> (nokhoogte, 99-percentiel hoogte van DSM), <code>H_DTM_GEM</code> (grondniveau), <code>LBLTYPE</code> (Gbg=hoofdgebouw, Bbg=bijgebouw), <code>OPPERVL</code>, <code>H_KWAL</code> (kwaliteit-classificatie van de hoogtedata)</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">6</span><h4>Front-end → trigger</h4>
+    <p><strong>Endpoint:</strong> <span class="endpoint">POST /api/lod2/trigger</span></p>
+    <p><strong>Body:</strong> <code>{capakey, gebouwen: [{footprint_wgs84, nokhoogte, gebouwType}, ...]}</code> (zie <a href="#app-a">Bijlage A</a>)</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">7</span><h4>Cache-check op Vercel Blob</h4>
+    <pre><code class="language-typescript">const { blobs } = await list({
+  prefix: `lod2/v4/${safe}`,
+  limit: 5,
+  token: process.env.BLOB_READ_WRITE_TOKEN,
+})
+const glb = blobs.find((b) =&gt; b.pathname.endsWith('.glb'))
+if (glb) return NextResponse.json({ status: 'done', url: glb.url })</code></pre>
+  </div>
+
+  <div class="step">
+    <span class="step-num">8</span><h4>Modal spawn (fire-and-forget)</h4>
+    <p><strong>Endpoint:</strong> <span class="endpoint">POST https://aferafzal--dakwerken-roofer-trigger.modal.run</span></p>
+    <p>De Modal <code>trigger</code>-handler roept <code>generate_and_store.spawn(capakey, gebouwen)</code> en geeft direct <code>{status: "queued"}</code> terug. Modal queued de async-job.</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">9</span><h4>Per gebouw — Modal pipeline</h4>
+    <p>Voor elk gebouw afzonderlijk:</p>
+    <ol>
+      <li>WGS84 → Lambert72 via <code>pyproj.Transformer</code></li>
+      <li>Tile lookup via <code>_find_tile_url()</code></li>
+      <li>LAZ-tile download (gecached na 1× per tile)</li>
+      <li>Roofer subprocess: <code>roofer --bld-class 1 --grnd-class 2 &lt;laz&gt; &lt;footprint.geojson&gt; &lt;out&gt;/</code></li>
+      <li>CityJSONSeq parsing met LOD-prioriteit <code>2.2 → 2.1 → 1.3 → 1.2 → 0</code></li>
+      <li><strong>Synthetic fallback</strong> als roofer faalt OF de mesh &lt; 1m hoog is (= alleen LOD0 footprint)</li>
+    </ol>
+  </div>
+
+  <div class="step">
+    <span class="step-num">10</span><h4>Mesh-combinatie</h4>
+    <pre><code class="language-python">combined = trimesh.util.concatenate(all_meshes) \
+    if len(all_meshes) &gt; 1 else all_meshes[0]</code></pre>
+  </div>
+
+  <div class="step">
+    <span class="step-num">11</span><h4>Wereld → glTF frame</h4>
+    <pre><code class="language-python">z_min = float(combined.bounds[0][2])
+combined.vertices = combined.vertices - np.array([global_cx, global_cy, z_min])
+rot = trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0])
+combined.apply_transform(rot)</code></pre>
+    <p>Centeert XY op global zwaartepunt van alle gebouwen, zet Z=0 op laagste punt, draait Z-up naar Y-up (glTF-conventie).</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">12</span><h4>Upload + render</h4>
+    <p><strong>Upload:</strong> <code>PUT https://blob.vercel-storage.com/lod2/v4/{capakey_safe}.glb</code> met header <code>x-vercel-blob-add-random-suffix: 0</code></p>
+    <p><strong>Front-end:</strong> polling <code>/api/lod2/status/{capakey}</code> elke 10s. Bij <code>done</code> → iframe naar <code>/lod2-viewer.html?glb={url}&amp;lat=...&amp;lng=...</code></p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--                       3. DATA ACQUISITION                                 -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="acquisition">
+  <h2><span class="num">3.</span> Data-acquisitie (detail)</h2>
+  <p class="lede">
+    Vier bronnen: Geopunt (geocoding), Capakey (kadaster), Basisregisters (gebouwen),
+    3D GRB WMS (hoogte/type). LiDAR komt uit een aparte S3 bucket.
+  </p>
+
+  <h3>Geocoding</h3>
+  <p>
+    Geopunt v4 (Vlaamse overheid). <strong>Geen</strong> Nominatim/OpenStreetMap.
+    Voordeel: levert direct Lambert72 (EPSG:31370) zonder eigen reprojectie, en
+    is gespecialiseerd op Vlaamse adressering inclusief huisnummer-bus-codes.
+  </p>
+
+  <h3>LAZ-tile lookup (DHMV II)</h3>
+  <table>
+    <tr><th>Bron</th><td>AWS S3 bucket <code>open-lidar-data</code>, regio <code>eu-central-1</code> (Frankfurt), anoniem leesbaar</td></tr>
+    <tr><th>Prefix</th><td><code>data/BE/EODaS/LiDAR_DHMV_II-2013-2015/copc/</code></td></tr>
+    <tr><th>Formaat</th><td>COPC (Cloud Optimized Point Cloud) — gegenereerd door FlaiHub</td></tr>
+    <tr><th>Bestandsnaam</th><td><code>LiDAR_DHMV_2_P{1|2|4|6}_ATL{flight_line_nr}_ES_{easting}_{northing}.copc.laz</code></td></tr>
+    <tr><th>Tile-grootte</th><td>500m × 500m, lower-left corner in filename</td></tr>
+    <tr><th>Totaal tiles</th><td>~46.000, gepartitioneerd over 4 P-prefixes</td></tr>
+    <tr><th>Typische tile-omvang</th><td>30–150 MB compressed, 3–9M punten</td></tr>
+    <tr><th>Puntdichtheid</th><td>~30 punten/m² gemiddeld</td></tr>
+  </table>
+
+  <h3>Tile-index opbouw (eenmalig)</h3>
+<pre><code class="language-python">def _load_tile_index(cache_dir: Path) -&gt; dict:
+    idx_path = cache_dir / "tile_index.json"
+    if idx_path.exists():
+        return json.loads(idx_path.read_text())
+
+    import boto3
+    from botocore import UNSIGNED
+    from botocore.config import Config
+
+    s3 = boto3.client("s3",
+        config=Config(signature_version=UNSIGNED),
+        region_name="eu-central-1")
+    paginator = s3.get_paginator("list_objects_v2")
+    index = {}
+    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=S3_PREFIX):
+        for obj in page.get("Contents", []):
+            filename = obj["Key"].split("/")[-1]
+            m = re.search(r"ES_(\d+)_(\d+)\.copc\.laz$", filename)
+            if m:
+                index[f"{m.group(1)}_{m.group(2)}"] = filename
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    idx_path.write_text(json.dumps(index))
+    return index</code></pre>
+
+  <h3>Tile lookup per gebouw</h3>
+<pre><code class="language-python">def _find_tile_url(index: dict, cx: float, cy: float) -&gt; str | None:
+    tile_x = int(cx // 500) * 500
+    tile_y = int(cy // 500) * 500
+    for dx in (0, -500, 500):
+        for dy in (0, -500, 500):
+            key = f"{tile_x + dx}_{tile_y + dy}"
+            if key in index:
+                return COPC_BASE + index[key]
+    return None</code></pre>
+  <p>
+    Eerst exacte containment (tile waarvan lower-left corner ≤ centroïde &lt; lower-left + 500),
+    daarna acht buren. Dit vangt randgevallen op waar het gebouw op de tile-grens ligt.
+  </p>
+
+  <h3>Tile download met caching</h3>
+<pre><code class="language-python">def _download_tile(tile_url: str, cache_dir: Path) -&gt; Path:
+    import requests as req
+    filename = tile_url.rsplit("/", 1)[-1]
+    cache_path = cache_dir / "tiles" / filename
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    if cache_path.exists() and cache_path.stat().st_size &gt; 1024 * 1024:
+        return cache_path
+    with req.get(tile_url, stream=True, timeout=600) as r:
+        r.raise_for_status()
+        with open(cache_path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=4 * 1024 * 1024):
+                f.write(chunk)
+    return cache_path</code></pre>
+  <p>
+    Cached in Modal Volume <code>roofer-cache</code> (persistent over function calls). Sanity-check:
+    bestaande file moet ≥ 1 MB zijn om als geldig te tellen (anders re-download).
+  </p>
+
+  <h3>3D GRB — alleen metadata, geen geometrie</h3>
+  <div class="callout note">
+    <strong>Belangrijke nuance:</strong>
+    <p>Layer <code>GRBGEBL1D2</code> = LOD 1 extrusie-hoogtemodel zonder dakvlakken. Wij gebruiken het
+    enkel om <code>nokhoogte</code>, <code>gebouwType</code> en <code>kwaliteit</code> op te halen — niet als
+    geometrie-bron. De echte LOD 2.2-geometrie komt uit de roofer-reconstructie op de DHMV II
+    puntwolk. Geen 3D GRB mesh download.</p>
+  </div>
+
+  <h3>Volledige Next.js API-route voor 3D GRB</h3>
+<pre><code class="language-typescript">async function get3DGrbInfo(x: number, y: number): Promise&lt;Hoogte3D | null&gt; {
+  try {
+    const delta = 40 // 80m venster rond centroide
+    const url = `${WMS_3DGRB}?SERVICE=WMS&amp;VERSION=1.3.0&amp;REQUEST=GetFeatureInfo` +
+      `&amp;LAYERS=GRBGEBL1D2&amp;QUERY_LAYERS=GRBGEBL1D2` +
+      `&amp;INFO_FORMAT=${encodeURIComponent('application/geo+json')}` +
+      `&amp;CRS=EPSG:31370` +
+      `&amp;BBOX=${Math.round(x - delta)},${Math.round(y - delta)},` +
+      `${Math.round(x + delta)},${Math.round(y + delta)}` +
+      `&amp;WIDTH=101&amp;HEIGHT=101&amp;I=50&amp;J=50&amp;FEATURE_COUNT=5`
+
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const data = await res.json()
+
+    const features = data?.features
+    if (!Array.isArray(features) || features.length === 0) return null
+
+    const hoofd = features.find((f) =&gt; f.properties?.ENTITEIT === 'Gbg') ?? features[0]
+    const p = hoofd.properties
+    return {
+      nokhoogte:   parseVlaamsGetal(p.HN_P99)   ?? parseVlaamsGetal(p.HN_MAX),
+      grondniveau: parseVlaamsGetal(p.H_DTM_GEM) ?? parseVlaamsGetal(p.H_DTM_MIN),
+      gebouwType:  p.LBLTYPE ?? null,
+      footprint3d: parseVlaamsGetal(p.OPPERVL),
+      kwaliteit:   p.H_KWAL ?? null,
+    }
+  } catch { return null }
+}</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--                       4. POINT CLOUD PROCESSING                          -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="pointcloud">
+  <h2><span class="num">4.</span> Point Cloud Processing</h2>
+  <p class="lede">
+    Wij doen <strong>geen eigen PDAL-pipeline</strong>. We downloaden de hele 500m × 500m LAZ-tile en
+    geven die door aan roofer, samen met een Lambert72 footprint-polygon. Roofer crop'pt, classificeert
+    en filtert intern.
+  </p>
+
+  <h3>Inlezen</h3>
+  <table>
+    <tr><th>Productie</th><td>roofer's interne LASlib-gebaseerde reader (geen Python-binding)</td></tr>
+    <tr><th>Debug-pad</th><td><code>laspy[lazrs]</code> in <code>debug_roofer()</code> Modal function — alleen voor inspectie (bbox, classificaties tellen, point-count per gebouw)</td></tr>
+    <tr><th>Streaming</th><td>Niet gebruikt. We downloaden de hele tile lokaal. COPC's octree-streaming voordeel benutten we (nog) niet.</td></tr>
+  </table>
+
+  <h3>Classificatie — kritisch punt</h3>
+  <div class="callout warn">
+    <strong>Non-standard classificatie in DHMV II open data</strong>
+    <p>De DHMV II tiles op het AWS open-lidar-data bucket gebruiken bijna uitsluitend
+    <code>classification = 1</code> ("unclassified"). De ASPRS-standaard zou klasse 6
+    ("building") moeten zijn voor dakpunten, maar deze data is niet door een building-classifier
+    gegaan. Resultaat: roofer's default (<code>--bld-class 6</code>) levert <em>geen</em> dakpunten op.</p>
+    <p>Onze fix: <code>roofer --bld-class 1 --grnd-class 2 …</code> — we vertellen roofer expliciet om
+    klasse 1 (unclassified) als bouwpunten te interpreteren. Klasse 2 (ground) is al correct
+    geclassificeerd in de DHMV II data.</p>
+  </div>
+
+  <h3>Verdeling per gebouw — debug-meting</h3>
+  <p>Voor Markt 59, Eeklo (capakey <code>43352E1255/00D000</code>, 88 m² hoofdgebouw):</p>
+  <table>
+    <tr><th>Totaal punten in 500m tile</th><td>8.445.316</td></tr>
+    <tr><th>Punten binnen gebouw-bbox (+5m)</th><td>15.233</td></tr>
+    <tr><th>Class 1 (unclassified, incl. dak)</th><td>12.108</td></tr>
+    <tr><th>Class 2 (ground)</th><td>3.125</td></tr>
+    <tr><th>Z-range van punten binnen bbox</th><td>10.08 m → 25.77 m (≈ ground tot nok)</td></tr>
+    <tr><th>Effectieve dichtheid in gebouw (na roofer crop)</th><td>27.8 pt/m²</td></tr>
+  </table>
+
+  <h3>Cropping &amp; filtering</h3>
+  <p>Geheel intern in roofer:</p>
+  <ul>
+    <li>Spatial crop op de footprint-polygon (Lambert72 EPSG:31370 GeoJSON)</li>
+    <li>Terrain detection via grondpunten (class 2) — fallback <code>buffer_tile</code> strategie</li>
+    <li>Outlier rejection via robust plane-fitting (RANSAC-achtig)</li>
+    <li>Footprint kan worden gebufferd/gesimplificeerd (zie roofer log: <em>"Simplifying and buffering footprints..."</em>)</li>
+  </ul>
+
+  <h3>Footprint-input formaat</h3>
+<pre><code class="language-python">fp_path.write_text(json.dumps({
+    "type": "FeatureCollection",
+    "crs": {"type": "name",
+            "properties": {"name": "urn:ogc:def:crs:EPSG::31370"}},
+    "features": [{
+        "type": "Feature",
+        "properties": {"id": f"{capakey}_{idx}"},
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [footprint_l72 + [footprint_l72[0]]],
+        },
+    }],
+}))</code></pre>
+  <p>Eén feature per gebouw. Coordinaten in Lambert72 meters. Polygon expliciet gesloten
+  (eerste punt herhaald als laatste).</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--                       5. DAKDETECTIE                                      -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="detection">
+  <h2><span class="num">5.</span> Dakvlakdetectie &amp; 3D-modellering</h2>
+  <p class="lede">
+    Twee paden: <strong>roofer LiDAR-reconstructie</strong> (primair) of <strong>synthetic geometrische
+    reconstructie</strong> (fallback). Beide leveren een <code>trimesh.Trimesh</code> in absolute Lambert72
+    coords (Z-up), die later worden gecombineerd en geherprojecteerd.
+  </p>
+
+  <h3>Roofer algoritme</h3>
+  <p>
+    Roofer past plane-fitting + region growing toe op de gefilterde puntwolk binnen de
+    footprint. De exacte methode is gedocumenteerd in TU Delft's 3DBAG paper. Vereenvoudigd:
+  </p>
+  <ol>
+    <li>Crop puntwolk op buffered footprint</li>
+    <li>Identificeer terrain via grondklasse + lokale grid</li>
+    <li>Voor het dak-gedeelte: plane-fitting op meerdere oriëntaties (RANSAC-variant)</li>
+    <li>Region growing om coherente dakvlakken te vormen</li>
+    <li>Snijden van de vlakken om nok- en hooklijnen te bepalen</li>
+    <li>Output: per gebouw meerdere LOD-niveaus (0, 1.2, 1.3, 2.2)</li>
+  </ol>
+
+  <h3>Output: CityJSONSequence</h3>
+  <p>
+    Een tekst-bestand met JSON Lines: één regel header met <code>transform</code> (scale + translate),
+    daarna één regel per gebouw als <code>CityJSONFeature</code>. Vertex-coördinaten zijn integers
+    relatief tot <code>transform.translate</code>, geschaald door <code>transform.scale</code>.
+    Zie <a href="#app-b">Bijlage B</a> voor een volledig voorbeeld.
+  </p>
+
+  <h3>roofer attributen die wij niet (nog) gebruiken</h3>
+  <table>
+    <thead><tr><th>Attribuut</th><th>Wat het levert</th></tr></thead>
+    <tbody>
+      <tr><td><code>rf_h_roof_ridge</code></td><td>Werkelijke nokhoogte uit data (vs. metadata <code>HN_P99</code>)</td></tr>
+      <tr><td><code>rf_roof_planes</code></td><td>Aantal gedetecteerde dakvlakken</td></tr>
+      <tr><td><code>rf_ridgelines</code></td><td>Aantal nok-/hooklijnen</td></tr>
+      <tr><td><code>rf_rmse_lod22</code></td><td>RMSE in m van de LOD 2.2 reconstructie t.o.v. punten</td></tr>
+      <tr><td><code>rf_volume_lod22</code></td><td>Bouwvolume in m³</td></tr>
+      <tr><td><code>rf_pt_density</code></td><td>Effectieve puntdichtheid die roofer zag</td></tr>
+      <tr><td><code>rf_nodata_frac</code></td><td>Fractie pixels zonder punten in de rasterizatie</td></tr>
+      <tr><td><code>rf_roof_type</code></td><td><code>slanted</code>, <code>flat</code>, <code>no points</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>CityJSON-parser (LOD-keuze)</h3>
+<pre><code class="language-python">def _cityjson_to_mesh(cj_path: Path):
+    import numpy as np
+    import trimesh
+
+    transform_info = None
+    all_verts, all_faces = [], []
+
+    with open(cj_path) as f:
+        for line in f:
+            obj = json.loads(line.strip())
+
+            if obj.get("type") == "CityJSON":
+                transform_info = obj.get("transform")
+
+            elif obj.get("type") == "CityJSONFeature":
+                raw = obj.get("vertices", [])
+                if not raw: continue
+                v = np.array(raw, dtype=np.float64)
+                if transform_info:
+                    sc = transform_info.get("scale", [1, 1, 1])
+                    tr = transform_info.get("translate", [0, 0, 0])
+                    v = v * sc + tr
+                base = len(all_verts)
+                all_verts.extend(v.tolist())
+
+                # LOD-prioriteit
+                preferred = ["2.2", "2.1", "1.3", "1.2", "0"]
+                for co in obj.get("CityObjects", {}).values():
+                    geoms_by_lod = {}
+                    for geom in co.get("geometry", []):
+                        lod = str(geom.get("lod", "0"))
+                        geoms_by_lod.setdefault(lod, []).append(geom)
+                    chosen = next((l for l in preferred if l in geoms_by_lod), None)
+                    if not chosen: continue
+                    for geom in geoms_by_lod[chosen]:
+                        gtype = geom.get("type", "")
+                        bounds = geom.get("boundaries", [])
+                        surfaces = []
+                        if gtype == "Solid":
+                            for shell in bounds: surfaces.extend(shell)
+                        elif gtype in ("MultiSurface", "CompositeSurface"):
+                            surfaces = bounds
+                        for surf in surfaces:
+                            ring = surf[0] if surf else []
+                            for i in range(1, len(ring) - 1):
+                                all_faces.append([base + ring[0],
+                                                  base + ring[i],
+                                                  base + ring[i + 1]])
+
+    if not all_verts or not all_faces: return None
+    return trimesh.Trimesh(
+        vertices=np.array(all_verts, dtype=np.float64),
+        faces=np.array(all_faces, dtype=np.int32),
+        process=False,
+    )</code></pre>
+  <p>
+    Naïef fan-triangulation van elke ring (werkt voor convexe polygonen — alle CityJSON
+    surfaces uit roofer zijn convex). Geen earcut, geen normaal-validatie.
+  </p>
+
+  <h3>Synthetic fallback</h3>
+  <p>
+    Triggers: tile niet gevonden in S3, roofer crash, of mesh-hoogte &lt; 1m (roofer output bevatte alleen LOD 0).
+    De fallback maakt een procedurele geometrie op basis van footprint + nokhoogte + gebouwType.
+  </p>
+
+  <h4>Plat-detectie heuristiek</h4>
+<pre><code class="language-python">gt = (gebouwType or "").lower()
+is_plat = (
+    gt.startswith("bijgebouw")
+    or gt in ("garage", "loods", "schuur", "stal", "aanbouw")
+    or opp &lt; 50                          # klein bijgebouw
+    or nokhoogte &lt; 4                     # te laag voor schilddak
+    or (nokhoogte &lt; 6 and opp &gt; 80)      # garage / klein loods
+    or (nokhoogte &lt; 8 and opp &gt; 200)     # bedrijfshal / grote loods
+    or (nokhoogte &gt; 12 and opp &gt; 250)    # appartementsblok
+)</code></pre>
+
+  <h4>Schilddak via PCA + Oriented Bounding Box</h4>
+<pre><code class="language-python"># Schilddak via oriented bounding box (centroïde-relatief om PCA te doen)
+centroid = pts.mean(axis=0)
+pts_centered = pts - centroid
+cov = np.cov(pts_centered.T)
+_, eigvecs = np.linalg.eigh(cov)
+long_axis = eigvecs[:, 1]
+angle = np.arctan2(long_axis[1], long_axis[0])
+rot = np.array([[np.cos(-angle), -np.sin(-angle)],
+                [np.sin(-angle),  np.cos(-angle)]])
+rotated = pts_centered @ rot.T
+min_xy, max_xy = rotated.min(axis=0), rotated.max(axis=0)
+# OBB-hoeken in geroteerde frame, dan terug
+corners_rot = np.array([[min_xy[0], min_xy[1]], [max_xy[0], min_xy[1]],
+                        [max_xy[0], max_xy[1]], [min_xy[0], max_xy[1]]])
+rot_inv = np.array([[np.cos(angle), -np.sin(angle)],
+                    [np.sin(angle),  np.cos(angle)]])
+obb = corners_rot @ rot_inv.T + centroid
+
+# Nok = lijn over de lange as, ingekort met 25% aan beide uiteinden (hipped roof)
+long_len = float(np.linalg.norm(obb[3] - obb[0]))
+cl_a = (obb[0] + obb[3]) / 2
+cl_b = (obb[1] + obb[2]) / 2
+nok_dir = (cl_b - cl_a) / np.linalg.norm(cl_b - cl_a)
+nok_inset = long_len * 0.25
+nok_a = cl_a + nok_dir * nok_inset
+nok_b = cl_b - nok_dir * nok_inset
+goothoogte = nokhoogte * 0.6   # GOOT_RATIO</code></pre>
+  <p>
+    Geometrische heuristiek — geen LiDAR. Goothoogte vast 60% van nokhoogte (typische Vlaamse
+    woning). Geen dakkapellen, geen hoekverdrag, geen ruimtelijke complexiteit.
+  </p>
+
+  <h3>Multi-gebouw combinatie</h3>
+<pre><code class="language-python">all_meshes = []
+for i, g in enumerate(gebouwen_l72):
+    # roofer of synthetic per gebouw...
+    mesh = _run_roofer_one(...) or _synthetic_mesh_abs(...)
+    all_meshes.append(mesh)
+
+combined = trimesh.util.concatenate(all_meshes) \
+    if len(all_meshes) &gt; 1 else all_meshes[0]
+
+# Centeer op global zwaartepunt
+z_min = float(combined.bounds[0][2])
+combined.vertices = combined.vertices - np.array([global_cx, global_cy, z_min])
+
+# Y-up voor glTF
+rot = trimesh.transformations.rotation_matrix(-math.pi / 2, [1, 0, 0])
+combined.apply_transform(rot)</code></pre>
+
+  <h3>Geen LOD1 als basis</h3>
+  <div class="callout note">
+    <strong>Wij gebruiken het 3D GRB LOD 1 blok NIET als geometrische basis.</strong>
+    <p>De LOD2 reconstructie komt puur uit de LiDAR puntwolk via roofer. 3D GRB wordt alleen
+    geconsulteerd voor metadata (nokhoogte als input voor synthetic fallback, gebouwType voor
+    plat-detectie heuristiek). Beslissing om geen hybride te bouwen: 3D GRB's LOD 1 is een
+    extrusie zonder dakvlakken, en hybridisatie met LiDAR voegt complexiteit toe zonder duidelijk
+    kwaliteitsvoordeel boven roofer-direct.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--                       6. METINGEN & OUTPUT                                -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="output">
+  <h2><span class="num">6.</span> Metingen &amp; Output</h2>
+
+  <h3>Dakoppervlakte-meting</h3>
+  <p>Werkelijke dakoppervlakte ≠ footprint-oppervlakte (vanwege helling). Hellings-correctie:</p>
+<pre><code class="language-typescript">function berekenDakOppervlak(
+    footprint: number | null,
+    nokhoogte: number | null,
+): number | null {
+  if (!footprint) return null
+  if (!nokhoogte) return footprint
+  let factor = 1.05
+  if (nokhoogte &gt;= 5 &amp;&amp; nokhoogte &lt; 8) factor = 1.15
+  else if (nokhoogte &gt;= 8 &amp;&amp; nokhoogte &lt; 12) factor = 1.30
+  else if (nokhoogte &gt;= 12) factor = 1.05
+  return Math.round(footprint * factor)
+}</code></pre>
+  <p>Footprint zelf berekend via shoelace-formule op de Lambert72 polygoon uit GML.</p>
+
+  <h3>3D-model export</h3>
+  <table>
+    <tr><th>Formaat</th><td>glTF binary (<code>.glb</code>) v2.0, Y-up</td></tr>
+    <tr><th>Bestandsgrootte</th><td>5–30 KB per perceel (typisch 10–15 KB)</td></tr>
+    <tr><th>Vertex precision</th><td>float64 server-side, glTF gebruikt float32 voor de output</td></tr>
+    <tr><th>Materialen</th><td><strong>Geen</strong> — embedded materials of textures in de glb. Alles client-side procedureel.</td></tr>
+    <tr><th>UV-coords</th><td>Geen — viewer genereert planar UVs uit XYZ</td></tr>
+    <tr><th>Normals</th><td>Geen — viewer roept <code>computeVertexNormals()</code></td></tr>
+    <tr><th>Storage</th><td>Vercel Blob (Frankfurt EU), pad <code>lod2/v4/{capakey_safe}.glb</code></td></tr>
+  </table>
+
+  <h3>Three.js viewer — face-normal-based material splitting</h3>
+  <p>
+    De viewer (in <code>public/lod2-viewer.html</code>) bouwt twee materialen op (dak met procedurele
+    dakpannen-canvas, muur met baksteen-canvas) en splitst de faces op basis van face-normaal:
+  </p>
+<pre><code class="language-javascript">// Per face: bereken normaal via cross-product, route naar dak of muur
+const n = new THREE.Vector3();
+for (let f = 0; f &lt; faceCount; f++) {
+  const i0 = oldIdx[f*3], i1 = oldIdx[f*3+1], i2 = oldIdx[f*3+2];
+  a.fromBufferAttribute(pos, i0);
+  b.fromBufferAttribute(pos, i1);
+  c.fromBufferAttribute(pos, i2);
+  n.crossVectors(
+    ab.subVectors(b, a),
+    ac.subVectors(c, a)
+  ).normalize();
+  // n.y &gt; 0.35 = upward-facing = dak (rest = wand of vloer)
+  (n.y &gt; 0.35 ? roofFaces : wallFaces).push(i0, i1, i2);
+}
+
+// Twee groups op de geometrie, met material-indices 0 (muur) en 1 (dak)
+geom.clearGroups();
+geom.addGroup(0, wallFaces.length, 0);
+geom.addGroup(wallFaces.length, roofFaces.length, 1);
+node.material = [muurMat, dakMat];</code></pre>
+
+  <h3>Ground plane &amp; lighting</h3>
+  <ul>
+    <li>Ground plane (80m × 80m) met Vlaamse WMS-luchtfoto als texture:
+        <code>https://geo.api.vlaanderen.be/OMWRGBMRVL/wms?LAYERS=Ortho&amp;BBOX={L72 bbox}</code></li>
+    <li>Lat/lng → Lambert72 conversie client-side via <code>proj4.js</code> CDN met expliciete
+        <code>+proj=lcc</code> definitie voor EPSG:31370</li>
+    <li>Sun: <code>DirectionalLight</code> warm wit (0xffeacc), intensity 2.4, position (35, 60, 25)</li>
+    <li>Shadows: PCF soft shadow map, 2048×2048</li>
+    <li>Tone mapping: <code>ACESFilmicToneMapping</code>, exposure 1.05</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--                       7. EXTRA DETAILS                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="extras">
+  <h2><span class="num">7.</span> Eventuele extra details</h2>
+
+  <h3>Caching-strategie</h3>
+  <table>
+    <thead><tr><th>Wat</th><th>Waar</th><th>TTL</th><th>Granulariteit</th></tr></thead>
+    <tbody>
+      <tr><td>S3 tile-listing</td><td>Modal Volume <code>roofer-cache:/cache/tile_index.json</code></td><td>Permanent (handmatige refresh)</td><td>~46k tiles in 1 JSON</td></tr>
+      <tr><td>LAZ tile-bestanden</td><td>Modal Volume <code>:/cache/tiles/*.copc.laz</code></td><td>Permanent</td><td>Per 500m tile</td></tr>
+      <tr><td>3D-model output</td><td>Vercel Blob <code>lod2/v4/{capakey}.glb</code></td><td>Permanent (handmatige invalidatie via versie-bump)</td><td>Per perceel (capakey)</td></tr>
+      <tr><td>Geocoding</td><td>Next.js <code>fetch(..., { next: { revalidate: 3600 } })</code></td><td>1 uur</td><td>Per autocomplete-query</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Error handling</h3>
+  <ul>
+    <li><strong>Roofer crash</strong>: per-gebouw fallback naar synthetic. Andere gebouwen onaangetast.</li>
+    <li><strong>Tile niet gevonden in S3 (coverage-gap)</strong>: synthetic fallback voor dat gebouw.</li>
+    <li><strong>Mesh hoogte &lt; 1m</strong>: synthetic fallback (interpretatie: roofer leverde alleen LOD 0 footprint terug).</li>
+    <li><strong>Geen footprint geleverd</strong>: fail-fast met error in response.</li>
+    <li><strong>Modal cold start error</strong>: front-end polling timeout na 5 min → UI toont "Kon model niet laden".</li>
+  </ul>
+
+  <h3>Performance</h3>
+  <table>
+    <thead><tr><th>Stap</th><th>Cold</th><th>Warm</th></tr></thead>
+    <tbody>
+      <tr><td>Modal container start</td><td>~15 s</td><td>~1 s</td></tr>
+      <tr><td>LAZ tile download (eerste keer)</td><td>5–15 s</td><td>—</td></tr>
+      <tr><td>LAZ tile (gecached)</td><td>&lt; 0.1 s</td><td>&lt; 0.1 s</td></tr>
+      <tr><td>roofer per gebouw</td><td>3–15 s</td><td>3–15 s (CPU-bound)</td></tr>
+      <tr><td>glb export + Vercel Blob upload</td><td>&lt; 1 s</td><td>&lt; 1 s</td></tr>
+      <tr><td>Volledige cached request</td><td>—</td><td>&lt; 1 s end-to-end</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Endpoint-overzicht</h3>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Methode</th><th>Beveiliging</th></tr></thead>
+    <tbody>
+      <tr><td><code>/api/dakmeting?q=...</code></td><td>GET</td><td>Public</td></tr>
+      <tr><td><code>/api/dakmeting?adres=...</code></td><td>GET</td><td>Public</td></tr>
+      <tr><td><code>/api/dakmeting?click_lat=...&amp;click_lng=...</code></td><td>GET</td><td>Public</td></tr>
+      <tr><td><code>/api/lod2/trigger</code></td><td>POST</td><td>Public (geen auth — backlog item)</td></tr>
+      <tr><td><code>/api/lod2/status/[capakey]</code></td><td>GET</td><td>Public</td></tr>
+      <tr><td><code>aferafzal--dakwerken-roofer-trigger.modal.run</code></td><td>POST</td><td>Public (geen auth)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--                       BIJLAGES                                            -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<section id="app-a">
+  <h2>Bijlage A — Voorbeeld Modal trigger request body</h2>
+  <div class="appendix">
+    <p>Wat de Next.js trigger-route stuurt naar de Modal endpoint. <code>footprint_wgs84</code> = lijst van <code>[lat, lng]</code> paren.</p>
+<pre><code class="language-json">{
+  "capakey": "43352E1255/00D000",
+  "gebouwen": [
+    {
+      "footprint_wgs84": [
+        [51.18444282366604, 3.5654354813528966],
+        [51.18447838328542, 3.5653571330958655],
+        [51.18437506249499, 3.565252223031536],
+        [51.18434420922217, 3.565331552083044],
+        [51.18434715654028, 3.5653345249016954],
+        [51.1843872727705,  3.5653749265160872],
+        [51.18444282366604, 3.5654354813528966]
+      ],
+      "nokhoogte": 13.34,
+      "gebouwType": "hoofdgebouw"
+    },
+    {
+      "footprint_wgs84": [
+        [51.18434420922217, 3.565331552083044],
+        [51.18437506249499, 3.565252223031536],
+        [51.1842936540604,  3.565169562882031]
+      ],
+      "nokhoogte": 5.4,
+      "gebouwType": "bijgebouw"
+    }
+  ]
+}</code></pre>
+  </div>
+</section>
+
+<section id="app-b">
+  <h2>Bijlage B — CityJSONSequence voorbeeld</h2>
+  <div class="appendix">
+    <p>Wat roofer terugstuurt na een succesvolle LOD 2.2 reconstructie. Twee regels:
+    een header met <code>transform</code>, en één <code>CityJSONFeature</code> per gebouw.
+    Hieronder de output voor Markt 59, Eeklo (hoofdgebouw, 88 m²).</p>
+
+    <h4>Regel 1 — Header</h4>
+<pre><code class="language-json">{
+  "type": "CityJSON",
+  "version": "2.0",
+  "CityObjects": {},
+  "transform": {
+    "scale":     [0.001, 0.001, 0.001],
+    "translate": [93832.98695130102, 208575.61069114972, 0.0]
+  },
+  "metadata": {
+    "geographicalExtent": [
+      93820.09280724279, 208564.71872337628, 10.180000305175781,
+      93832.85399723999, 208579.6257949667,  23.894420623779297
+    ],
+    "identifier": "0",
+    "referenceDate": "2026-05-09",
+    "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/31370"
+  },
+  "vertices": []
+}</code></pre>
+
+    <h4>Regel 2 — CityJSONFeature met Building + BuildingPart</h4>
+<pre><code class="language-json">{
+  "type": "CityJSONFeature",
+  "id": "1",
+  "vertices": [
+    [0, 0, 10180],
+    [-5435, 4015, 10180],
+    [-12894, -7399, 10180],
+    [-7384, -10891, 10180],
+    [-4300, -6134, 10180],
+    [-2917, 1825, 22340],
+    [-6201, -3567, 22340],
+    /* ...meer vertices voor de LOD 2.2 dakvlakken... */
+  ],
+  "CityObjects": {
+    "1": {
+      "type": "Building",
+      "attributes": {
+        "id": "43352E1255_00D000_0",
+        "rf_extrusion_mode": "standard",
+        "rf_h_ground": 10.18,
+        "rf_h_pc_98p": 23.74,
+        "rf_h_roof_50p": 22.16,
+        "rf_h_roof_70p": 22.75,
+        "rf_h_roof_max": 23.77,
+        "rf_h_roof_min": 20.52,
+        "rf_h_roof_ridge": 23.73,
+        "rf_is_glass_roof": false,
+        "rf_nodata_frac": 0.0,
+        "rf_nodata_r": 0.0,
+        "rf_pc_select": "PREFERRED_AND_LATEST",
+        "rf_pc_year": 0,
+        "rf_pointcloud_unusable": false,
+        "rf_pt_density": 27.78,
+        "rf_ridgelines": 2,
+        "rf_rmse_lod22": 1.4338,
+        "rf_roof_planes": 4,
+        "rf_roof_type": "slanted",
+        "rf_success": true,
+        "rf_t_run": 50,
+        "rf_volume_lod22": 1052.15
+      },
+      "children": ["1-0"],
+      "geographicalExtent": [
+        93820.0928, 208564.7187, 10.18,
+        93832.8540, 208579.6258, 23.8944
+      ],
+      "geometry": [
+        {
+          "type": "MultiSurface",
+          "lod": "0",
+          "boundaries": [[[0, 1, 2, 3, 4]]]
+        }
+      ]
+    },
+    "1-0": {
+      "type": "BuildingPart",
+      "parents": ["1"],
+      "geometry": [
+        {
+          "type": "Solid",
+          "lod": "1.2",
+          "boundaries": [[
+            [[0, 1, 2, 3, 4]],
+            [[6, 5]], [[7, 6]]
+            /* ...verticale wanden + plat dak op nokhoogte... */
+          ]]
+        },
+        {
+          "type": "Solid",
+          "lod": "1.3",
+          "boundaries": [[
+            /* extrusie met 1 enkele gemiddelde dakhoogte */
+          ]]
+        },
+        {
+          "type": "Solid",
+          "lod": "2.2",
+          "boundaries": [[
+            [[2, 5, 6, 1, 7, 8, 9, 10, 4, 3, 11]],
+            [[12, 11, 3, 13]],
+            [[14, 2, 11, 12]],
+            [[15, 1, 6, 16]],
+            [[17, 18, 19]],
+            [[20, 9, 8, 21]],
+            /* ...verschillende dakvlakken met ridgelines... */
+            [[25, 12, 13, 23, 22, 20, 21, 27, 26]]
+          ]],
+          "semantics": {
+            "surfaces": [
+              { "type": "GroundSurface" },
+              { "on_footprint_edge": true,  "type": "WallSurface" },
+              { "on_footprint_edge": false, "type": "WallSurface" },
+              { "rf_azimuth": 213.69, "rf_h_roof_50p": 22.4,
+                "rf_inclination": 33.5, "type": "RoofSurface" }
+              /* ...meer RoofSurface entries per dakvlak... */
+            ],
+            "values": [[ 0, 1, 1, 2, 3, 3, 3, 3, 1, 1, 3, 3, 1, 1, 3, 3, 1, 1, 1 ]]
+          }
+        }
+      ]
+    }
+  }
+}</code></pre>
+    <p style="color: var(--muted); font-size: 0.85rem;">
+      <strong>Belangrijk voor de expert:</strong> de <code>semantics</code> dictionary per LOD 2.2 surface
+      bevat <code>rf_azimuth</code>, <code>rf_inclination</code> en hoogte-statistieken per dakvlak.
+      Deze info gebruiken wij <em>nog niet</em> in het rapport — wel meegenomen voor toekomstige
+      uitbreidingen zoals zonnepotentieel-berekening.
+    </p>
+  </div>
+</section>
+
+<section id="app-c">
+  <h2>Bijlage C — 3D GRB WMS GetFeatureInfo response</h2>
+  <div class="appendix">
+    <p>GeoJSON response van <code>geo.api.vlaanderen.be/3DGRB/wms</code> met layer <code>GRBGEBL1D2</code>:</p>
+<pre><code class="language-json">{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "ENTITEIT":   "Gbg",
+        "LBLTYPE":    "hoofdgebouw",
+        "OPPERVL":    "88,12",
+        "HN_P99":     "13,34",
+        "HN_MAX":     "13,48",
+        "HN_GEM":     "12,15",
+        "H_DTM_GEM":  "10,44",
+        "H_DTM_MIN":  "10,18",
+        "H_KWAL":     "Goed"
+      },
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [ /* Lambert72 polygoon */ ]
+      }
+    }
+  ]
+}</code></pre>
+    <p style="color: var(--muted); font-size: 0.85rem;">
+      <strong>Quirk:</strong> getallen worden geleverd als strings met comma-decimaal
+      ("13,34" ipv 13.34). Onze <code>parseVlaamsGetal()</code> handler converteert naar float.
+    </p>
+  </div>
+</section>
+
+<section id="app-d">
+  <h2>Bijlage D — Basisregisters gebouw-detail response</h2>
+  <div class="appendix">
+    <p>Response van <code>api.basisregisters.vlaanderen.be/v2/gebouwen/{id}</code>:</p>
+<pre><code class="language-json">{
+  "identificator": {
+    "id": "https://data.vlaanderen.be/id/gebouw/.../12345",
+    "objectId": "12345",
+    "versieId": "2024-..."
+  },
+  "geometriePolygoon": null,
+  "gebouwPolygoon": {
+    "geometrie": {
+      "gml": "&lt;gml:Polygon srsName='https://www.opengis.net/def/crs/EPSG/0/31370'&gt;\n  &lt;gml:exterior&gt;\n    &lt;gml:LinearRing&gt;\n      &lt;gml:posList&gt;\n        93820.45 208564.78 93828.31 208566.12\n        93830.85 208579.47 93824.99 208581.03\n        93820.45 208564.78\n      &lt;/gml:posList&gt;\n    &lt;/gml:LinearRing&gt;\n  &lt;/gml:exterior&gt;\n&lt;/gml:Polygon&gt;"
+    },
+    "geometrieMethode": "ingemetenGRB"
+  },
+  "geometrieMethode": "ingemetenGRB",
+  "gebouwStatus": "gerealiseerd",
+  "gebouwGeschiedenis": [ /* ... */ ]
+}</code></pre>
+    <p style="color: var(--muted); font-size: 0.85rem;">
+      <strong>Note:</strong> de polygon-coords zitten in een GML string die we zelf parsen met
+      een regex (zie <code>extractCoordsFromGml()</code> in route.ts). Geen XML-parser library
+      omdat de structuur uiterst voorspelbaar is.
+    </p>
+  </div>
+</section>
+
+<section id="app-e">
+  <h2>Bijlage E — Roofer CLI flags (relevante subset)</h2>
+  <div class="appendix">
+<pre><code class="language-bash">Usage:
+  roofer [options] &lt;pointcloud-path&gt;... &lt;polygon-source&gt; &lt;output-directory&gt;
+
+Input options:
+  --id-attribute &lt;string&gt;          Building ID attribuut voor CityJSONSeq output
+  --force-lod11-attribute &lt;string&gt; Forceer LoD 1.1 extrusie voor specifieke gebouwen
+  --h-terrain-attribute &lt;string&gt;   Fallback terrain elevation per gebouw
+
+Building / ground classification:
+  --bld-class &lt;int&gt;                LAS classification code voor bouwpunten [default 6]
+  --grnd-class &lt;int&gt;               LAS classification code voor grondpunten [default 2]
+
+Reconstructie:
+  --lod12 / --lod13 / --lod22      Output-LOD-niveaus (combineerbaar, default LoD 2.2)
+  --complexity-factor &lt;float&gt;      0.0–1.0, hoger = meer detail in mesh
+  --[no-]clear-insufficient        Geen reconstructie voor gebouwen met te weinig punten
+
+Filtering:
+  --filter &lt;string&gt;                OGR SQL WHERE-clause op de polygon-source
+  --box &lt;string&gt;                   Bounding-box om processing te beperken
+
+Performance:
+  -j, --jobs &lt;int&gt;                 Worker threads (default = CPU cores + 1)
+  --ceil-point-density &lt;float&gt;     Maximum pt/m² (downsample boven deze limiet)</code></pre>
+    <p>
+      Onze huidige aanroep: <code>roofer --bld-class 1 --grnd-class 2 &lt;laz&gt; &lt;fp.geojson&gt; &lt;out&gt;/</code>.
+      Geen <code>--complexity-factor</code> override (gebruikt default 0.8). Geen
+      <code>--ceil-point-density</code> (we trusten DHMV II's ~30 pt/m²).
+    </p>
+  </div>
+</section>
+
+<section id="app-f">
+  <h2>Bijlage F — Bekende beperkingen voor expert-discussie</h2>
+  <div class="appendix">
+    <p>Lijstje "lessons learned" en bewust open vragen waar we input op zoeken.</p>
+
+    <h3>Coverage van DHMV II open data</h3>
+    <p>De S3 bucket bevat <strong>niet</strong> heel Vlaanderen. Gaten:</p>
+    <ul>
+      <li>X = 98.000–129.500 → Gent centrum, Lokeren, Aalst centrum</li>
+      <li>X = 162.000–193.500 → Hoogstraten, Turnhout, Geel, Leuven</li>
+    </ul>
+    <p>Voor adressen in deze zones valt onze pipeline terug op de synthetische geometrie.
+    <strong>Vraag aan expert:</strong> bestaat er een complete bron (DHMV III? betaald?) die we
+    automatisch kunnen aanspreken?</p>
+
+    <h3>Classificatie</h3>
+    <p>Alle non-ground returns zitten in klasse 1 ("unclassified"). We hebben dit omzeild met
+    <code>--bld-class 1</code>, maar dat betekent dat ook bomen, antennes en straatmeubilair
+    binnen de footprint als bouwpunten worden geïnterpreteerd. Roofer's interne plane-fitting
+    filtert dit grotendeels, maar perfect is het niet.</p>
+    <p><strong>Vraag aan expert:</strong> is het zinvol om een externe classifier (PDAL?
+    Lidar360? machine learning?) tussen LAZ download en roofer-aanroep te zetten?</p>
+
+    <h3>DHMV-versie</h3>
+    <p>Huidige bron: DHMV II (2013–2015). DHMV III (2018-2020) of nieuwer bestaat maar niet op
+    deze open S3 bucket. <strong>Vraag aan expert:</strong> weet u of er een open download is
+    voor DHMV III? Of is het uitsluitend via betaalde toegang van het AGIV?</p>
+
+    <h3>Context-vrije reconstructie</h3>
+    <p>Roofer reconstrueert <strong>per gebouw geïsoleerd</strong>. Bij rijwoningen of dichtbebouwde
+    straten kan dit leiden tot kleine inconsistenties bij gedeelde nokken/muren. We sturen
+    momenteel één footprint per call (één <code>Feature</code> in de GeoJSON), niet de hele rij.</p>
+    <p><strong>Vraag aan expert:</strong> is het beter om alle gebouwen op een perceel als één
+    multi-feature GeoJSON aan roofer te geven? Roofer ondersteunt batch-input. Onze keuze voor
+    één gebouw per aanroep was simpliciteit, niet kwaliteit.</p>
+
+    <h3>Geen vegetation-filter</h3>
+    <p>We doen geen pre-pass om bomen/vegetatie te verwijderen. Voor bouwfootprints die deels
+    onder een boom liggen (vrij vaak in Vlaamse dorpen) krijgt roofer dus deels boom-punten als
+    "dakpunten" mee. Het effect is doorgaans klein maar niet nul.</p>
+
+    <h3>Geen kwaliteits-feedback aan front-end</h3>
+    <p>Roofer levert <code>rf_rmse_lod22</code> en <code>rf_pt_density</code> per gebouw, maar wij
+    parsen die niet terug naar de front-end. Bij lage kwaliteit (RMSE &gt; 2m, density &lt; 5/m²)
+    zouden we de gebruiker kunnen waarschuwen of een vrijwaring kunnen tonen.</p>
+
+    <h3>Synthetic fallback geometrie</h3>
+    <p>Onze fallback maakt enkel schilddak of plat dak. Geen mansarde, geen zadeldak, geen
+    dakkapellen, geen complex L/T-vormig gebouw. Voor 80% van de huizen is dit acceptabel
+    visueel, maar niet representatief. <strong>Vraag aan expert:</strong> kennen we een lichte
+    geometrische primitive-bibliotheek (e.g. CompenGB, BuildingsGen) die we als upgrade kunnen
+    inzetten voor de fallback?</p>
+  </div>
+</section>
+
+<footer style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem;">
+  <p>Document gegenereerd op basis van code-versie v4 (multi-gebouw). Voor de meest recente
+  state, raadpleeg de Git repository <code>dakwerken-leads</code>.</p>
+  <p>Bestanden specifiek aangeraden om door te nemen:
+    <code>lod2-poc/modal_roofer.py</code>,
+    <code>app/api/dakmeting/route.ts</code>,
+    <code>public/lod2-viewer.html</code>.</p>
+</footer>
+
+</main>
+</div>
+
+</body>
+</html>
