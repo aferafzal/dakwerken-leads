@@ -9,7 +9,7 @@ export const steden: Stad[] = [
   {
     naam: 'Gent',
     slug: 'gent',
-    beschrijving: 'Als dakspecialist actief in Gent en omgeving staan we garant voor kwalitatief dakwerk op maat.',
+    beschrijving: 'Dakwerk op maat in Gent en omgeving, door gecertificeerde dakwerkers uit ons netwerk.',
     regio: 'Oost-Vlaanderen',
   },
   {
@@ -21,25 +21,25 @@ export const steden: Stad[] = [
   {
     naam: 'Sint-Niklaas',
     slug: 'sint-niklaas',
-    beschrijving: 'Betrouwbare dakwerken in Sint-Niklaas en het Waasland met jarenlange ervaring.',
+    beschrijving: 'Dakwerken in Sint-Niklaas en het Waasland, van herstelling tot volledige renovatie.',
     regio: 'Oost-Vlaanderen',
   },
   {
     naam: 'Dendermonde',
     slug: 'dendermonde',
-    beschrijving: 'Uw dakspecialist in Dendermonde voor renovatie, reparatie en nieuwbouw.',
+    beschrijving: 'Dakwerken in Dendermonde voor renovatie, reparatie en nieuwbouw.',
     regio: 'Oost-Vlaanderen',
   },
   {
     naam: 'Lokeren',
     slug: 'lokeren',
-    beschrijving: 'Dakwerken in Lokeren uitgevoerd door ervaren vaklieden met oog voor kwaliteit.',
+    beschrijving: 'Dakwerken in Lokeren, uitgevoerd door gecertificeerde dakwerkers uit ons netwerk.',
     regio: 'Oost-Vlaanderen',
   },
   {
     naam: 'Ronse',
     slug: 'ronse',
-    beschrijving: 'Professionele dakwerken in Ronse en de Vlaamse Ardennen tegen eerlijke prijzen.',
+    beschrijving: 'Dakwerken in Ronse en de Vlaamse Ardennen, van daklekkage tot dakisolatie.',
     regio: 'Oost-Vlaanderen',
   },
   {
@@ -51,7 +51,7 @@ export const steden: Stad[] = [
   {
     naam: 'Maldegem',
     slug: 'maldegem',
-    beschrijving: 'Dakwerken in Maldegem en het Meetjesland met snelle service en garantie.',
+    beschrijving: 'Dakwerken in Maldegem en het Meetjesland: lekkages, isolatie en renovatie.',
     regio: 'Oost-Vlaanderen',
   },
   {
@@ -63,13 +63,13 @@ export const steden: Stad[] = [
   {
     naam: 'Zottegem',
     slug: 'zottegem',
-    beschrijving: 'Dakspecialist in Zottegem en de Vlaamse Ardennen voor particulieren en bedrijven.',
+    beschrijving: 'Dakwerken in Zottegem en de Vlaamse Ardennen voor particulieren en bedrijven.',
     regio: 'Oost-Vlaanderen',
   },
   {
     naam: 'Beveren',
     slug: 'beveren',
-    beschrijving: 'Betrouwbare dakwerken in Beveren-Waas en het havengebied van Antwerpen.',
+    beschrijving: 'Dakwerken in Beveren-Waas en het havengebied van Antwerpen.',
     regio: 'Oost-Vlaanderen',
   },
   {
@@ -81,19 +81,19 @@ export const steden: Stad[] = [
   {
     naam: 'Geraardsbergen',
     slug: 'geraardsbergen',
-    beschrijving: 'Uw dakaannemer in Geraardsbergen voor kwalitatief en duurzaam dakwerk.',
+    beschrijving: 'Dakwerken in Geraardsbergen, van kleine herstelling tot nieuw dak.',
     regio: 'Oost-Vlaanderen',
   },
   {
     naam: 'Eeklo',
     slug: 'eeklo',
-    beschrijving: 'Dakwerken in Eeklo en het Meetjesland door lokale vaklieden met garantie.',
+    beschrijving: 'Dakwerken in Eeklo en het Meetjesland door gecertificeerde dakwerkers uit ons netwerk.',
     regio: 'Oost-Vlaanderen',
   },
   {
     naam: 'Ninove',
     slug: 'ninove',
-    beschrijving: 'Professionele dakwerken in Ninove en de Denderstreek voor elk budget.',
+    beschrijving: 'Dakwerken in Ninove en de Denderstreek, van herstelling tot renovatie.',
     regio: 'Oost-Vlaanderen',
   },
 ]

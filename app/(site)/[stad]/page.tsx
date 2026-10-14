@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
+import { Clock, Droplets, House, Thermometer } from 'lucide-react'
 import { steden, getStadBySlug } from '@/lib/steden'
 import LeadForm from '@/components/LeadForm'
 
@@ -19,7 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return {
     title: `Dakwerken ${stadData.naam} — Gratis Offerte`,
-    description: `${stadData.beschrijving} Gratis offerte binnen 2 uur. Gecertificeerde dakspecialisten actief in ${stadData.naam} en omgeving.`,
+    description: `${stadData.beschrijving} Gratis offerte binnen 2 uur. Gecertificeerde dakwerkers uit ons netwerk, actief in ${stadData.naam} en omgeving.`,
   }
 }
 
@@ -54,43 +56,45 @@ export default async function StadPage({ params }: Props) {
       <section className="py-14">
         <div className="mx-auto max-w-3xl px-4">
           <h2 className="mb-6 text-2xl font-bold text-gray-900">
-            Uw dakspecialist in {stadData.naam}
+            Een gecertificeerde dakwerker in {stadData.naam}
           </h2>
           <div className="space-y-4 text-gray-700 leading-relaxed">
             <p>
-              Op zoek naar een betrouwbare dakwerker in {stadData.naam}? Wij zijn lokaal actief
-              in {stadData.naam} en omliggende gemeenten van {stadData.regio}. Of het nu gaat om
-              een kleine daklekkage of een volledige dakrenovatie — onze specialisten staan voor
-              u klaar.
+              Op zoek naar een betrouwbare dakwerker in {stadData.naam}? Wij brengen u in contact
+              met een gecertificeerde dakwerker uit ons netwerk die actief is in {stadData.naam} en
+              de omliggende gemeenten van {stadData.regio}. Of het nu gaat om een kleine daklekkage
+              of een volledige dakrenovatie.
             </p>
             <p>
-              Onze dakwerkers in {stadData.naam} werken met hoogwaardige materialen en bieden
-              altijd een uitgebreide garantie op uitgevoerde werken. We werken snel en efficiënt,
-              zodat u niet lang met problemen hoeft te zitten.
+              Vraag vandaag nog een gratis offerte aan voor uw dakproject in {stadData.naam}. U
+              wordt binnen 2 uur gebeld (op werkdagen) om uw situatie te bespreken en een
+              plaatsbezoek in te plannen.
             </p>
             <p>
-              Vraag vandaag nog een gratis offerte aan voor uw dakproject in {stadData.naam}.
-              We nemen binnen 2 uur telefonisch contact met u op om uw situatie te bespreken en
-              een afspraak in te plannen.
+              Eerst weten hoe uw dak ervoor staat?{' '}
+              <Link href="/" className="font-semibold text-green-800 underline underline-offset-2">
+                Vraag een gratis dakrapport aan
+              </Link>{' '}
+              met de oppervlakte, mogelijke premies en een kostenindicatie voor uw woning.
             </p>
           </div>
 
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <ul className="mt-8 grid gap-4 sm:grid-cols-2">
             {[
-              { icon: '🔧', label: 'Daklekkage hersteld in 24-48u' },
-              { icon: '🏠', label: 'Dakrenovatie met energiepremies' },
-              { icon: '❄️', label: 'Dakisolatie voor meer comfort' },
-              { icon: '✅', label: '10 jaar garantie op alle werken' },
-            ].map((item) => (
-              <div
-                key={item.label}
+              { Icon: Droplets,    label: 'Daklekkages opsporen en herstellen' },
+              { Icon: House,       label: 'Dakrenovatie' },
+              { Icon: Thermometer, label: 'Dakisolatie' },
+              { Icon: Clock,       label: 'Gratis offerte binnen 2 uur' },
+            ].map(({ Icon, label }) => (
+              <li
+                key={label}
                 className="flex items-center gap-3 rounded-xl bg-green-50 p-4"
               >
-                <span className="text-2xl">{item.icon}</span>
-                <span className="font-medium text-green-900">{item.label}</span>
-              </div>
+                <Icon className="h-5 w-5 flex-shrink-0 text-green-700" aria-hidden />
+                <span className="font-medium text-green-900">{label}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       </section>
     </>

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Phone } from 'lucide-react'
 import WhatsAppButton from '@/components/WhatsAppButton'
 import ChatWidget from '@/components/ChatWidget'
+import { BEDRIJF, BEDRIJF_ADRES } from '@/lib/bedrijf'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -29,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="nl" className="h-full antialiased scroll-smooth">
+    <html lang="nl-BE" className="h-full antialiased scroll-smooth">
       <body className={`${inter.className} min-h-full flex flex-col bg-white`}>
         <header className="absolute top-0 left-0 right-0 z-40">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-4 sm:px-6 py-5">
@@ -52,20 +53,23 @@ export default function RootLayout({
 
         <footer className="bg-navy border-t border-white/10">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10">
-            <div className="flex flex-col sm:flex-row justify-between gap-6 text-sm text-white/40">
+            <div className="flex flex-col sm:flex-row justify-between gap-6 text-sm text-white/65">
               <div>
-                <p className="font-bold text-white mb-1">Dakwerken Oost-Vlaanderen</p>
-                <p>Professionele dakwerken — snel, eerlijk, met garantie.</p>
+                <p className="font-bold text-white mb-1">{BEDRIJF.handelsnaam}</p>
+                <p>Gratis dakrapport en contact met gecertificeerde dakwerkers in Oost-Vlaanderen.</p>
               </div>
-              <div className="flex gap-6">
+              <div className="flex flex-wrap gap-x-6 gap-y-2">
                 <a href={`tel:${OWNER_PHONE}`} className="hover:text-white transition-colors">{OWNER_PHONE}</a>
                 <a href={`https://wa.me/${OWNER_WHATSAPP}`} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">WhatsApp</a>
-                <Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link>
-                <Link href="/dashboard" className="hover:text-white transition-colors">Dashboard</Link>
+                <Link href="/privacy" className="hover:text-white transition-colors">Privacyverklaring</Link>
               </div>
             </div>
-            <p className="mt-6 text-xs text-white/20">
-              © {new Date().getFullYear()} Dakwerken Oost-Vlaanderen
+            <p className="mt-6 text-xs leading-relaxed text-white/55">
+              {BEDRIJF.handelsnaam} is een handelsnaam van {BEDRIJF.naam} · {BEDRIJF_ADRES} ·
+              ondernemingsnummer {BEDRIJF.ondernemingsnummer} · {BEDRIJF.email}
+            </p>
+            <p className="mt-1 text-xs text-white/55">
+              © {new Date().getFullYear()} {BEDRIJF.naam}
             </p>
           </div>
         </footer>

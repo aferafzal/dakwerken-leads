@@ -1,12 +1,17 @@
 import { z } from 'zod'
 
+// Aanvaardt gangbare schrijfwijzen: 0470 12 34 56, 0470/12.34.56, +32 470 12 34 56, 0032…
+const TELEFOON_FOUT = 'Dit telefoonnummer klopt niet. Bijvoorbeeld: 0470 12 34 56 of +32 470 12 34 56'
+export function isGeldigTelefoon(waarde: string): boolean {
+  const cijfers = waarde.replace(/[\s().\/-]/g, '')
+  return /^(\+|00)?\d{9,13}$/.test(cijfers)
+}
+const telefoonSchema = z.string().refine(isGeldigTelefoon, TELEFOON_FOUT)
+
 // ── Volledig schema (legacy — voor het oude offerte-formulier) ─────
 export const leadSchema = z.object({
   naam: z.string().min(2, 'Naam is verplicht'),
-  telefoon: z
-    .string()
-    .min(9, 'Telefoonnummer is ongeldig')
-    .regex(/^[0-9+\s()-]{9,15}$/, 'Voer een geldig telefoonnummer in'),
+  telefoon: telefoonSchema,
   email: z.string().email('Ongeldig e-mailadres').optional().or(z.literal('')),
   adres: z.string().optional(),
   gemeente: z.string().min(2, 'Gemeente is verplicht'),
@@ -59,10 +64,7 @@ export const funnelStapVragenlijst = z.object({
 /** Stap 3 — Telefoon + naam + probleem → status 'hot' */
 export const funnelStapTelefoon = z.object({
   naam: z.string().min(2, 'Naam is verplicht'),
-  telefoon: z
-    .string()
-    .min(9, 'Telefoonnummer is ongeldig')
-    .regex(/^[0-9+\s()-]{9,15}$/, 'Voer een geldig telefoonnummer in'),
+  telefoon: telefoonSchema,
   beste_tijd: z.enum(['direct', 'vandaag', 'morgen']).optional(),
   probleem: z.enum(
     ['daklekkage', 'isolatie', 'renovatie', 'nieuw_dak', 'anders'] as const

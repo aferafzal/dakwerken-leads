@@ -26,6 +26,7 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [kaartOppervlakte, setKaartOppervlakte] = useState<number | null>(null)
+  const [verzendFout, setVerzendFout] = useState<string | null>(null)
 
   const {
     register,
@@ -109,12 +110,20 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
   }
 
   async function onSubmit(data: LeadFormData) {
-    const res = await fetch('/api/leads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, dakOppervlakte: dakOppervlakte ?? undefined }),
-    })
-    if (res.ok) router.push('/bedankt')
+    setVerzendFout(null)
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, dakOppervlakte: dakOppervlakte ?? undefined }),
+      })
+      if (!res.ok) throw new Error('Verzenden mislukt')
+      router.push('/bedankt')
+    } catch {
+      setVerzendFout(
+        `Uw aanvraag kon niet verstuurd worden. Probeer het opnieuw of bel ons op ${process.env.NEXT_PUBLIC_OWNER_PHONE ?? 'het nummer bovenaan'}.`
+      )
+    }
   }
 
   return (
@@ -123,7 +132,7 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
       className="rounded-2xl bg-white p-6 shadow-lg ring-1 ring-gray-200 space-y-5"
       noValidate
     >
-      <h3 className="text-xl font-bold text-gray-900">Gratis dakrapport aanvragen</h3>
+      <h3 className="text-xl font-bold text-gray-900">Gratis offerte aanvragen</h3>
 
       {/* Naam */}
       <div>
@@ -288,7 +297,8 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
         <label className="flex items-start gap-2 text-sm text-gray-700">
           <input type="checkbox" className="mt-0.5 accent-green-600" {...register('gdpr_consent')} />
           <span>
-            Ik ga akkoord dat mijn gegevens worden gebruikt om contact op te nemen over mijn aanvraag.{' '}
+            Ik ga akkoord dat mijn gegevens worden gebruikt om contact met mij op te nemen over mijn
+            aanvraag, ook door een gecertificeerde dakwerker uit het netwerk van Dakwerken Oost-Vlaanderen.{' '}
             <a href="/privacy" className="text-green-700 underline">Privacyverklaring</a>{' '}
             <span className="text-red-500">*</span>
           </span>
@@ -301,6 +311,10 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
         </label>
       </div>
 
+      {verzendFout && (
+        <p role="alert" className="text-sm text-red-700">{verzendFout}</p>
+      )}
+
       <button
         type="submit"
         disabled={isSubmitting}
@@ -310,7 +324,7 @@ export default function LeadForm({ defaultGemeente }: LeadFormProps) {
       </button>
 
       <p className="text-center text-xs text-gray-500">
-        We bellen u terug binnen 2 uur op werkdagen.
+        U wordt binnen 2 uur teruggebeld, op werkdagen.
       </p>
     </form>
   )

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { Check, CircleCheck } from 'lucide-react'
 import type { DakmetingResultaat } from '@/app/api/dakmeting/route'
 import type { PerceelSelectie } from './DakKaart'
 import {
@@ -9,6 +10,7 @@ import {
   dakwerkenLabels,
   lekkageLabels,
   typeWerkenLabels,
+  isGeldigTelefoon,
   type FunnelStapVragenlijst,
 } from '@/lib/validations'
 
@@ -20,15 +22,28 @@ type Stap = 'adres' | 'scan' | 'preview' | 'email' | 'vragenlijst' | 'telefoon' 
 
 const STAP_LABELS: Record<Stap, string> = {
   adres:       'Adres',
-  scan:        'Scan',
-  preview:     'Resultaat',
+  scan:        'Uw dak',
+  preview:     'Uw dak',
   email:       'Rapport',
-  vragenlijst: 'Verfijn',
+  vragenlijst: 'Rapport aanvullen',
   telefoon:    'Advies',
   klaar:       'Klaar',
 }
 
 const VOORTGANG: Stap[] = ['adres', 'scan', 'preview', 'email', 'vragenlijst', 'telefoon', 'klaar']
+
+// Wat de bezoeker als stappen ziet: 3 stappen tot het rapport (zoals op de homepage),
+// daarna zijn vragenlijst en telefoon optionele extra's.
+const HOOFDSTAP: Partial<Record<Stap, number>> = { adres: 1, scan: 2, preview: 2, email: 3 }
+const AANTAL_HOOFDSTAPPEN = 3
+
+const BELMOMENT: Record<'direct' | 'vandaag' | 'morgen', string> = {
+  direct:  'Zo snel mogelijk',
+  vandaag: 'Later vandaag',
+  morgen:  'Morgen',
+}
+
+const OWNER_PHONE = process.env.NEXT_PUBLIC_OWNER_PHONE ?? ''
 
 // Steppen waar 3D-model als compacte preview blijft staan (na de eerste keer)
 const TOON_3D_PREVIEW: Stap[] = ['email', 'vragenlijst', 'telefoon']
@@ -46,6 +61,7 @@ export default function DakRapportFunnel() {
   const [adresWaarde, setAdresWaarde] = useState('')
   const [suggesties, setSuggesties] = useState<string[]>([])
   const [toonDropdown, setToonDropdown] = useState(false)
+  const [adresMelding, setAdresMelding] = useState<string | null>(null)
   const [meting, setMeting] = useState<DakmetingResultaat | null>(null)
   const [metingBezig, setMetingBezig] = useState(false)
   const [perceelSelectie, setPerceelSelectie] = useState<PerceelSelectie | null>(null)
@@ -98,6 +114,7 @@ export default function DakRapportFunnel() {
     setAdresWaarde(q)
     setMeting(null)
     setPerceelSelectie(null)
+    setAdresMelding(null)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (q.length < 4) {
       setSuggesties([])
@@ -107,11 +124,16 @@ export default function DakRapportFunnel() {
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/dakmeting?q=${encodeURIComponent(q)}`)
-        if (!res.ok) return
+        if (!res.ok) throw new Error('Adres opzoeken mislukt')
         const data = await res.json()
-        setSuggesties(data.suggesties ?? [])
-        setToonDropdown(true)
-      } catch { /* stil falen */ }
+        const lijst: string[] = data.suggesties ?? []
+        setSuggesties(lijst)
+        setToonDropdown(lijst.length > 0)
+        setAdresMelding(lijst.length > 0 ? null
+          : 'Geen adres gevonden. Typ straat, huisnummer en gemeente, bijvoorbeeld: Korenmarkt 10, Gent.')
+      } catch {
+        setAdresMelding('Adressen opzoeken lukt nu even niet. Probeer het zo meteen opnieuw.')
+      }
     }, 300)
   }
 
@@ -204,8 +226,11 @@ export default function DakRapportFunnel() {
   async function submitEmail(e: React.FormEvent) {
     e.preventDefault()
     setEmailFout(null)
-    if (!email.includes('@')) { setEmailFout('Ongeldig e-mailadres'); return }
-    if (!gdpr) { setEmailFout('Akkoord met privacy is verplicht'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setEmailFout('Dit e-mailadres klopt niet. Bijvoorbeeld: naam@voorbeeld.be')
+      return
+    }
+    if (!gdpr) { setEmailFout('Vink het vakje aan om akkoord te gaan met de privacyverklaring.'); return }
     setBezig(true)
     try {
       const res = await fetch('/api/funnel/step', {
@@ -236,7 +261,7 @@ export default function DakRapportFunnel() {
       if (!res.ok) throw new Error('Submit mislukt')
       setStap('vragenlijst')
     } catch {
-      setEmailFout('Er ging iets mis. Probeer opnieuw.')
+      setEmailFout('Uw rapport kon niet verstuurd worden. Controleer uw internetverbinding en probeer het opnieuw.')
     } finally {
       setBezig(false)
     }
@@ -269,7 +294,10 @@ export default function DakRapportFunnel() {
     e.preventDefault()
     setTelefoonFout(null)
     if (naam.trim().length < 2) { setTelefoonFout('Vul uw naam in'); return }
-    if (!/^[0-9+\s()-]{9,15}$/.test(telefoon)) { setTelefoonFout('Ongeldig telefoonnummer'); return }
+    if (!isGeldigTelefoon(telefoon)) {
+      setTelefoonFout('Dit telefoonnummer klopt niet. Bijvoorbeeld: 0470 12 34 56 of +32 470 12 34 56')
+      return
+    }
     setBezig(true)
     try {
       const res = await fetch('/api/funnel/step', {
@@ -284,7 +312,9 @@ export default function DakRapportFunnel() {
       if (!res.ok) throw new Error('Submit mislukt')
       setStap('klaar')
     } catch {
-      setTelefoonFout('Er ging iets mis. Probeer opnieuw.')
+      setTelefoonFout(
+        `Uw aanvraag kon niet verstuurd worden. Probeer het opnieuw${OWNER_PHONE ? ` of bel ons op ${OWNER_PHONE}` : ''}.`
+      )
     } finally {
       setBezig(false)
     }
@@ -292,7 +322,11 @@ export default function DakRapportFunnel() {
 
   // ── UI ──────────────────────────────────────────────────────────
   const stapIndex = VOORTGANG.indexOf(stap)
-  const voortgang = ((stapIndex + 1) / VOORTGANG.length) * 100
+  const hoofdstap = HOOFDSTAP[stap]
+  const voortgang = hoofdstap ? (hoofdstap / AANTAL_HOOFDSTAPPEN) * 100 : 100
+  const voortgangLabel = hoofdstap
+    ? `Stap ${hoofdstap} van ${AANTAL_HOOFDSTAPPEN}`
+    : stap === 'klaar' ? 'Klaar' : 'Extra · optioneel'
 
   // Terug-knop: gaat één stap terug, behalve op 'adres' en 'klaar'
   const vorigeStap: Stap | null =
@@ -321,9 +355,9 @@ export default function DakRapportFunnel() {
                 ← Vorige
               </button>
             )}
-            <span>Stap {stapIndex + 1} van {VOORTGANG.length}</span>
+            <span>{voortgangLabel}</span>
           </div>
-          <span className="text-green-700">{STAP_LABELS[stap]}</span>
+          {stap !== 'klaar' && <span className="text-green-700">{STAP_LABELS[stap]}</span>}
         </div>
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div
@@ -353,10 +387,10 @@ export default function DakRapportFunnel() {
           <div className="space-y-4">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Ontdek alles over uw eigen dak
+                Waar staat uw woning?
               </h2>
               <p className="text-sm text-gray-600">
-                Vul uw adres in om uw gratis dakrapport te starten. Geen verplichtingen.
+                Vul uw adres in. U ziet meteen de luchtfoto van uw perceel.
               </p>
             </div>
 
@@ -401,12 +435,19 @@ export default function DakRapportFunnel() {
                   ))}
                 </ul>
               )}
+
+              {adresMelding && (
+                <p role="status" className="mt-2 text-sm text-gray-700">{adresMelding}</p>
+              )}
             </div>
 
-            <ul className="text-xs text-gray-500 space-y-1 pt-2">
-              <li>✓ Direct resultaat op kaart</li>
-              <li>✓ Officiële Vlaamse overheidsdata</li>
-              <li>✓ Volledig gratis, geen account nodig</li>
+            <ul className="text-xs text-gray-600 space-y-1 pt-2">
+              {['Meteen zichtbaar op de kaart', 'Gegevens van de Vlaamse overheid', 'Gratis, zonder account'].map((t) => (
+                <li key={t} className="flex items-center gap-1.5">
+                  <Check className="h-3.5 w-3.5 flex-shrink-0 text-green-700" aria-hidden />
+                  {t}
+                </li>
+              ))}
             </ul>
           </div>
         )}
@@ -415,9 +456,13 @@ export default function DakRapportFunnel() {
         {stap === 'scan' && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Klik op uw woning</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-1">
+                {totaalDak ? 'Is dit uw woning?' : 'Klik op uw woning'}
+              </h2>
               <p className="text-sm text-gray-600">
-                Selecteer het juiste perceel op de kaart voor de meest accurate meting.
+                {totaalDak
+                  ? 'Staat de verkeerde woning aangeduid? Klik dan op de kaart op het juiste dak.'
+                  : 'Klik op de kaart op het dak van uw woning.'}
               </p>
             </div>
 
@@ -444,7 +489,7 @@ export default function DakRapportFunnel() {
               />
             ) : (
               <div className="h-64 rounded-xl bg-gray-50 flex items-center justify-center text-sm text-gray-500">
-                {metingBezig ? 'Uw dak wordt opgezocht…' : 'Geen kaartgegevens'}
+                {metingBezig ? 'Uw dak wordt opgezocht…' : 'Voor dit adres vonden we geen kaartgegevens. Probeer een ander adres.'}
               </div>
             )}
 
@@ -460,7 +505,7 @@ export default function DakRapportFunnel() {
                 disabled={!totaalDak}
                 className="flex-1 rounded-lg bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {totaalDak ? `Bekijk resultaat (±${totaalDak} m²) →` : 'Selecteer eerst uw perceel'}
+                {totaalDak ? `Bekijk resultaat (±${totaalDak} m²) →` : 'Klik eerst op uw dak'}
               </button>
             </div>
           </div>
@@ -512,18 +557,16 @@ export default function DakRapportFunnel() {
                 )}
               </div>
               <div className="rounded-xl bg-gray-50 border border-gray-200 p-4">
-                <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Daktype</p>
-                <p className="text-lg font-bold text-gray-900 capitalize">{daktype ?? 'Onbekend'}</p>
-                {nokhoogte && (
-                  <p className="text-xs text-gray-500 mt-0.5">Nokhoogte {nokhoogte} m</p>
-                )}
+                <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Nokhoogte</p>
+                <p className="text-2xl font-bold text-gray-900">{nokhoogte ? `${nokhoogte} m` : 'Onbekend'}</p>
               </div>
             </div>
 
             <div className="rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-4">
-              <p className="text-sm font-semibold text-amber-900 mb-1">📄 Dit is een voorproef</p>
+              <p className="text-sm font-semibold text-amber-900 mb-1">In uw volledige rapport</p>
               <p className="text-xs text-amber-800">
-                Uw volledige rapport bevat: kostenindicatie, mogelijke premies, checklist voor uw dak en een vergelijking met de straat.
+                Een kostenindicatie, mogelijke premies, aandachtspunten voor uw dak en een vergelijking met de buurt.
+                We sturen het naar uw e-mailadres, zodat u het later terugvindt.
               </p>
             </div>
 
@@ -531,14 +574,14 @@ export default function DakRapportFunnel() {
               onClick={() => setStap('email')}
               className="w-full rounded-lg bg-green-600 px-4 py-3.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
             >
-              📧 Stuur mijn volledig rapport
+              Stuur mij het volledige rapport
             </button>
 
             <button
               onClick={() => setStap('scan')}
               className="w-full text-xs text-gray-500 hover:text-gray-700"
             >
-              ← Ander perceel selecteren
+              ← Andere woning kiezen
             </button>
           </div>
         )}
@@ -549,7 +592,7 @@ export default function DakRapportFunnel() {
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">Waar mogen we uw rapport sturen?</h2>
               <p className="text-sm text-gray-600">
-                U ontvangt het volledige dakrapport binnen 2 minuten in uw inbox.
+                U krijgt meteen een e-mail met de link naar uw rapport.
               </p>
             </div>
 
@@ -581,7 +624,7 @@ export default function DakRapportFunnel() {
               </span>
             </label>
 
-            {emailFout && <p className="text-xs text-red-600">{emailFout}</p>}
+            {emailFout && <p role="alert" className="text-sm text-red-700">{emailFout}</p>}
 
             <button
               type="submit"
@@ -591,9 +634,6 @@ export default function DakRapportFunnel() {
               {bezig ? 'Bezig…' : 'Stuur mijn rapport →'}
             </button>
 
-            <p className="text-center text-xs text-gray-400">
-              ⏱ Uw rapport komt binnen 2 minuten in uw inbox
-            </p>
           </form>
         )}
 
@@ -602,11 +642,12 @@ export default function DakRapportFunnel() {
           <div className="space-y-5">
             <div>
               <div className="inline-flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-50 px-2.5 py-1 rounded-full mb-3">
-                ✓ Rapport verstuurd
+                <Check className="h-3.5 w-3.5" aria-hidden />
+                Rapport verstuurd
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">Maak uw rapport persoonlijker</h2>
               <p className="text-sm text-gray-600">
-                3 korte vragen voor specifiek advies. Helemaal optioneel.
+                Vier korte vragen. Uw rapport krijgt dan aandachtspunten voor uw woning. Helemaal optioneel.
               </p>
             </div>
 
@@ -711,7 +752,7 @@ export default function DakRapportFunnel() {
                 disabled={bezig}
                 className="flex-1 rounded-lg bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
               >
-                {bezig ? 'Bezig…' : 'Verfijn rapport →'}
+                {bezig ? 'Bezig…' : 'Vul mijn rapport aan →'}
               </button>
             </div>
           </div>
@@ -721,16 +762,19 @@ export default function DakRapportFunnel() {
         {stap === 'telefoon' && (
           <form onSubmit={submitTelefoon} className="space-y-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">📞 Gratis expertadvies?</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Uw rapport bespreken met een dakwerker?</h2>
               <p className="text-sm text-gray-600">
-                Onze dakexpert bekijkt uw rapport gratis en belt u binnen 30 minuten met persoonlijk advies.
+                Een gecertificeerde dakwerker uit ons netwerk overloopt uw rapport met u aan de telefoon.
               </p>
             </div>
 
-            <ul className="text-xs text-gray-500 space-y-0.5">
-              <li>✓ Geen kosten</li>
-              <li>✓ Geen verplichting</li>
-              <li>✓ Wij bellen binnen 30 min tijdens werkuren</li>
+            <ul className="text-xs text-gray-600 space-y-1">
+              {['Geen kosten', 'Geen verplichting', 'U kiest zelf wanneer u gebeld wordt'].map((t) => (
+                <li key={t} className="flex items-center gap-1.5">
+                  <Check className="h-3.5 w-3.5 flex-shrink-0 text-green-700" aria-hidden />
+                  {t}
+                </li>
+              ))}
             </ul>
 
             <div>
@@ -762,37 +806,38 @@ export default function DakRapportFunnel() {
             </div>
 
             <div>
-              <p className="block text-sm font-medium text-gray-700 mb-2">Beste tijd om te bellen?</p>
+              <p className="block text-sm font-medium text-gray-700 mb-2">Wanneer mogen we u bellen?</p>
               <div className="grid grid-cols-3 gap-2">
                 {(['direct', 'vandaag', 'morgen'] as const).map((t) => (
                   <button
                     key={t}
                     type="button"
                     onClick={() => setBesteTijd(t)}
-                    className={`text-sm py-2.5 px-3 rounded-lg border capitalize transition-colors ${
+                    className={`text-sm py-2.5 px-3 rounded-lg border transition-colors ${
                       besteTijd === t
                         ? 'border-green-600 bg-green-50 text-green-700 font-semibold'
                         : 'border-gray-200 text-gray-700 hover:border-gray-300'
                     }`}
                   >
-                    {t}
+                    {BELMOMENT[t]}
                   </button>
                 ))}
               </div>
             </div>
 
-            {telefoonFout && <p className="text-xs text-red-600">{telefoonFout}</p>}
+            {telefoonFout && <p role="alert" className="text-sm text-red-700">{telefoonFout}</p>}
 
             <button
               type="submit"
               disabled={bezig}
               className="w-full rounded-lg bg-green-600 px-4 py-3.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
             >
-              {bezig ? 'Bezig…' : '📞 Bel mij gratis'}
+              {bezig ? 'Bezig…' : 'Bel mij gratis terug'}
             </button>
 
-            <p className="text-center text-xs text-gray-400">
-              Geen verplichting · uw nummer wordt niet gedeeld
+            <p className="text-center text-xs text-gray-600">
+              We geven uw naam en nummer door aan een dakwerker uit ons netwerk, zodat die u kan bellen.
+              Meer daarover in de <a href="/privacy" className="underline underline-offset-2">privacyverklaring</a>.
             </p>
           </form>
         )}
@@ -800,11 +845,13 @@ export default function DakRapportFunnel() {
         {/* ─── Stap 7 — Klaar ─── */}
         {stap === 'klaar' && (
           <div className="text-center space-y-4 py-4">
-            <div className="text-5xl">🎉</div>
+            <CircleCheck className="mx-auto h-12 w-12 text-green-600" aria-hidden />
             <div>
               <h2 className="text-2xl font-bold text-gray-900">Bedankt, {naam}!</h2>
               <p className="text-sm text-gray-600 mt-2">
-                Onze dakexpert belt u binnen <strong>30 minuten</strong> op {telefoon}.
+                {besteTijd === 'direct'
+                  ? <>U wordt zo snel mogelijk gebeld op {telefoon}. Op werkdagen is dat <strong>binnen 2 uur</strong>.</>
+                  : <>U wordt <strong>{BELMOMENT[besteTijd].toLowerCase()}</strong> gebeld op {telefoon}.</>}
               </p>
             </div>
 
@@ -814,13 +861,13 @@ export default function DakRapportFunnel() {
               rel="noopener"
               className="inline-flex items-center gap-2 rounded-lg bg-green-700 px-5 py-3 text-sm font-semibold text-white hover:bg-green-800 transition-colors"
             >
-              📄 Bekijk uw dakrapport
+              Bekijk uw dakrapport
             </a>
 
             <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-left">
-              <p className="text-xs font-semibold uppercase tracking-wider text-green-800 mb-1">📧 Inbox check</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-green-800 mb-1">Rapport verstuurd</p>
               <p className="text-sm text-green-900">
-                Uw volledige dakrapport is verstuurd naar <strong>{email}</strong>. Niet ontvangen? Check uw spam-map.
+                Uw dakrapport is verstuurd naar <strong>{email}</strong>. Niet ontvangen? Kijk ook bij uw ongewenste e-mail.
               </p>
             </div>
 
@@ -830,7 +877,7 @@ export default function DakRapportFunnel() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-5 py-3 text-sm font-semibold text-white hover:bg-[#1da851] transition-colors"
             >
-              💬 Liever direct via WhatsApp?
+              Nog een vraag? Stuur ons een WhatsApp
             </a>
           </div>
         )}

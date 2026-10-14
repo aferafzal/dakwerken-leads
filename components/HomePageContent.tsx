@@ -12,8 +12,8 @@ import styles from '@/styles/homepage.module.css'
 const SECTIONS = [
   { id: 'hero',        label: 'Home' },
   { id: 'hoe-werkt',  label: 'Werkwijze' },
-  { id: 'resultaten', label: 'Resultaten' },
-  { id: 'waarom',     label: 'Over ons' },
+  { id: 'rapport',    label: 'Uw rapport' },
+  { id: 'waarom',     label: 'Vertrouwen' },
 ] as const
 
 // ─────────────────────────────────────────────────────────────
@@ -190,7 +190,7 @@ export default function HomePageContent() {
                 visible: { opacity: 1, y: 0, transition: { duration: 0.9, ease: [0.16, 1, 0.3, 1] } },
               }}
             >
-              Volledig informatief rapport&nbsp;&bull;&nbsp;Dakoppervlakte, premies en kostenindicatie&nbsp;&bull;&nbsp;Gegevens via 3D GRB Vlaanderen
+              Oppervlakte, mogelijke premies en een kostenindicatie voor uw woning. Gratis, op basis van officiële Vlaamse gegevens.
             </motion.p>
 
             {/* ── CHANGED: new CTA styles ── */}
@@ -218,7 +218,7 @@ export default function HomePageContent() {
                 style={{ background: 'rgba(255,255,255,0.09)', border: '1px solid rgba(255,255,255,0.18)' }}
               >
                 <WhatsAppIcon className="w-4 h-4" style={{ color: '#25D366' }} />
-                Chat met dakexpert
+                Vraag via WhatsApp
               </a>
             </motion.div>
           </motion.div>
@@ -264,9 +264,9 @@ export default function HomePageContent() {
               {/* Stappen */}
               <div className="space-y-9">
                 {[
-                  { nr: '01', t: 'Adres invoeren', d: 'Vul het adres van uw woning in. We tonen direct de luchtfoto en het kadasterperceel.' },
-                  { nr: '02', t: 'Klik op uw dak', d: 'Selecteer uw woning op de kaart. We berekenen oppervlakte, daktype en hoogte uit officiële Vlaamse data.' },
-                  { nr: '03', t: 'Ontvang uw rapport', d: 'Volledig dakrapport per email: aandachtspunten, mogelijke premies en kostenindicatie.' },
+                  { nr: '01', t: 'Adres invoeren', d: 'Vul het adres van uw woning in. U ziet meteen de luchtfoto van uw perceel.' },
+                  { nr: '02', t: 'Klik op uw dak', d: 'Duid uw woning aan op de kaart. We berekenen de oppervlakte en hoogte van uw dak uit officiële Vlaamse gegevens.' },
+                  { nr: '03', t: 'Ontvang uw rapport', d: 'U krijgt meteen een e-mail met uw rapport: 3D-model, kostenindicatie, mogelijke premies en aandachtspunten.' },
                 ].map((s, i) => (
                   <div key={i} className="flex gap-5" style={{ transitionDelay: `${i * 0.12}s` }}>
                     <div className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center"
@@ -327,50 +327,39 @@ export default function HomePageContent() {
         </section>
 
         {/* ════════════════════════════════════════════════════
-            03 — BEFORE / AFTER
+            03 — WAT STAAT ER IN UW RAPPORT
+            (vervangt de AI-gegenereerde voor/na-beelden: geen gegenereerd beeld als realisatie)
         ════════════════════════════════════════════════════ */}
-        <section ref={setRef(2)} className={styles.section} id="resultaten"
+        <section ref={setRef(2)} className={styles.section} id="rapport"
           style={{ background: '#f3f4f6' }}>
           <div className={`${styles.grain} ${styles.grainLight}`} />
           <div className={`${styles.glow} ${styles.glowNavy} ${styles.glowNavyBotRight}`} />
 
           <div className={`${contentCls(2)} max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24`}>
-            <div className="mb-14">
+            <div className="mb-14 max-w-2xl">
               <p className="text-xs font-semibold tracking-[0.2em] uppercase mb-3"
-                style={{ color: 'hsl(25 95% 53%)' }}>03 — Resultaten</p>
-              <h2 className="text-4xl sm:text-5xl font-black leading-tight"
-                style={{ color: 'hsl(222 47% 11%)' }}>Het verschil dat wij maken</h2>
+                style={{ color: 'hsl(25 95% 53%)' }}>03 — Uw rapport</p>
+              <h2 className="text-4xl sm:text-5xl font-black leading-tight text-balance"
+                style={{ color: 'hsl(222 47% 11%)' }}>Wat staat er in uw dakrapport?</h2>
+              <p className="mt-5 text-base sm:text-lg leading-relaxed" style={{ color: 'hsl(215 19% 35%)' }}>
+                Het rapport gaat over uw woning, niet over ons. Alles is berekend voor uw eigen dak.
+              </p>
             </div>
 
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <dl className="grid sm:grid-cols-2 gap-x-14 gap-y-10 max-w-4xl">
               {[
-                { b: '/generated/roof-gent-daklekkage-before.png',        a: '/generated/roof-gent-daklekkage-after.png',        city: 'Gent',        type: 'Daklekkage' },
-                { b: '/generated/roof-aalst-renovatie-before.png',        a: '/generated/roof-aalst-renovatie-after.png',        city: 'Aalst',       type: 'Renovatie' },
-                { b: '/generated/roof-dendermonde-nieuw_dak-before.png',  a: '/generated/roof-dendermonde-nieuw_dak-after.png',  city: 'Dendermonde', type: 'Nieuw dak' },
-              ].map((p, i) => (
-                <div key={i} className="rounded-2xl overflow-hidden shadow-sm"
-                  style={{ background: '#fff', border: '1px solid #e5e7eb', transitionDelay: `${i * 0.1}s` }}>
-                  <div className="grid grid-cols-2 gap-px" style={{ background: '#e5e7eb' }}>
-                    <div className="relative" style={{ aspectRatio: '4/3' }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.b} alt={`Voor — ${p.type} ${p.city}`} className="w-full h-full object-cover" />
-                      <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider"
-                        style={{ background: 'rgba(0,0,0,0.65)', color: '#fff' }}>Voor</span>
-                    </div>
-                    <div className="relative" style={{ aspectRatio: '4/3' }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.a} alt={`Na — ${p.type} ${p.city}`} className="w-full h-full object-cover" />
-                      <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider"
-                        style={{ background: '#16a34a', color: '#fff' }}>Na</span>
-                    </div>
-                  </div>
-                  <div className="px-4 py-3 flex justify-between items-center">
-                    <span className="text-sm font-semibold" style={{ color: 'hsl(222 47% 11%)' }}>{p.type}</span>
-                    <span className="text-xs" style={{ color: '#9ca3af' }}>{p.city}</span>
-                  </div>
+                { t: 'Uw dak in 3D',       d: 'Een 3D-model van uw woning en de oppervlakte van uw dak, berekend uit de hoogtegegevens van de Vlaamse overheid.' },
+                { t: 'Kostenindicatie',    d: 'Een prijsvork per soort werk, zoals pannen vervangen, isoleren of een plat dak vernieuwen, berekend op de oppervlakte van uw dak.' },
+                { t: 'Mogelijke premies',  d: 'Welke premies voor uw werken kunnen gelden, met een link naar de officiële aanvraag.' },
+                { t: 'Aandachtspunten',    d: 'Waar u op moet letten bij uw woning, zoals asbest in oudere leien of tekenen van slechte isolatie.' },
+              ].map((item, i) => (
+                <div key={item.t} className="border-t pt-5"
+                  style={{ borderColor: 'hsl(220 13% 80%)', transitionDelay: `${i * 0.08}s` }}>
+                  <dt className="text-lg font-bold" style={{ color: 'hsl(222 47% 11%)' }}>{item.t}</dt>
+                  <dd className="mt-2 text-base leading-relaxed" style={{ color: 'hsl(215 19% 35%)' }}>{item.d}</dd>
                 </div>
               ))}
-            </div>
+            </dl>
           </div>
         </section>
 
@@ -390,23 +379,21 @@ export default function HomePageContent() {
                 style={{ color: 'hsl(25 95% 53%)' }}>04 — Vertrouwen</p>
               <h2 className="text-4xl sm:text-5xl font-black leading-tight max-w-md"
                 style={{ color: '#fff' }}>
-                Meer dan 500 tevreden klanten
+                Eerst uw rapport. Daarna beslist u.
               </h2>
             </div>
 
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-14">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-14">
               {[
-                { t: 'Officiële Vlaamse data',  d: 'Gegevens uit Basisregisters, 3D GRB en Capakey. Geen schattingen — werkelijke kadasterdata.' },
-                { t: 'Binnen 2 uur',       d: 'Offerte in uw mailbox nog dezelfde dag. U beslist op uw tempo.' },
-                { t: 'Lokale vakmannen',   d: 'Gecertificeerde dakwerkers in heel Oost-Vlaanderen. Snel ter plaatse.' },
-                { t: '10 jaar garantie',   d: 'Wij staan 10 jaar garant voor elk uitgevoerd werk.' },
-                { t: 'Eerlijke prijs',     d: 'Transparante offertes. Geen verborgen kosten, nooit.' },
-                { t: 'Energiepremies',     d: 'Wij begeleiden u bij alle premieaanvragen voor isolatie.' },
+                { t: 'Officiële gegevens',          d: 'Oppervlakte en hoogte van uw dak komen uit de kaart- en hoogtegegevens van de Vlaamse overheid.' },
+                { t: 'Gratis en vrijblijvend',      d: 'Het rapport kost niets en verplicht u tot niets.' },
+                { t: 'Gecertificeerde dakwerkers',  d: 'Wilt u verder? Dan brengen we u in contact met een gecertificeerde dakwerker uit uw regio.' },
+                { t: 'Offerte binnen 2 uur',        d: 'Vraagt u een offerte aan, dan wordt u op werkdagen binnen 2 uur gebeld.' },
               ].map((u, i) => (
-                <div key={i} className="rounded-xl p-5 transition-colors"
-                  style={{ border: '1px solid rgba(255,255,255,0.08)', transitionDelay: `${i * 0.06}s` }}>
+                <div key={u.t} className="rounded-xl p-5 transition-colors"
+                  style={{ border: '1px solid rgba(255,255,255,0.12)', transitionDelay: `${i * 0.06}s` }}>
                   <h3 className="font-bold mb-1.5 text-sm" style={{ color: '#fff' }}>{u.t}</h3>
-                  <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>{u.d}</p>
+                  <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>{u.d}</p>
                 </div>
               ))}
             </div>
@@ -420,7 +407,7 @@ export default function HomePageContent() {
               >
                 Vraag uw gratis dakrapport →
               </button>
-              <p className="mt-3 text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              <p className="mt-3 text-xs" style={{ color: 'rgba(255,255,255,0.65)' }}>
                 Geen verplichtingen. Gratis en vrijblijvend.
               </p>
             </div>

@@ -531,9 +531,9 @@ export default async function RapportPage(
           {/* CTA */}
           <section className="rounded-xl bg-green-50 border-2 border-green-200 p-6 text-center">
             <h3 className="text-lg font-bold text-green-900 mb-1">Klaar voor de volgende stap?</h3>
-            <p className="text-sm text-green-800 mb-4">Bespreek dit rapport met een onafhankelijke dakexpert uit ons netwerk. Gratis en zonder verplichtingen.</p>
+            <p className="text-sm text-green-800 mb-4">Bespreek dit rapport met een gecertificeerde dakwerker uit ons netwerk. Gratis en zonder verplichtingen.</p>
             <a href={`tel:${process.env.NEXT_PUBLIC_OWNER_PHONE ?? ''}`} className="inline-flex items-center gap-2 rounded-lg bg-green-700 px-5 py-3 text-sm font-semibold text-white hover:bg-green-800">
-              📞 Bel een dakexpert
+              Bel ons om uw rapport te bespreken
             </a>
           </section>
 
