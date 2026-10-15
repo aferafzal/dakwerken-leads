@@ -32,6 +32,8 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
       zoom: 19,
       maxZoom: 21,
       zoomControl: true,
+      // Op gsm: één vinger scrolt de pagina, niet de kaart (inzoomen met twee vingers blijft)
+      dragging: !L.Browser.mobile,
     })
     mapInstance.current = map
 
@@ -50,6 +52,8 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
       format: 'image/png',
       transparent: true,
       maxZoom: 21,
+      // Gedempt, zodat de daken op de luchtfoto zichtbaar blijven
+      opacity: 0.35,
       attribution: '© GRB',
     }).addTo(map)
 
@@ -222,22 +226,22 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
           {totaalDak > 0 && (
             <div className="px-4 py-3 bg-green-700 text-white flex items-center justify-between">
               <div>
-                <p className="text-[10px] uppercase tracking-wider opacity-80">
+                <p className="text-xs uppercase tracking-wider opacity-80">
                   Geschatte dakoppervlakte{gebouwen.length > 1 ? ` (${gebouwen.length} gebouwen)` : ''}
                 </p>
                 <p className="text-2xl font-bold leading-tight">
                   ±{totaalDak} m²
                 </p>
                 {totaalDak !== totaalFootprint && totaalFootprint > 0 && (
-                  <p className="text-[10px] opacity-70 mt-0.5">
-                    Grondvlak: {totaalFootprint} m² + hellingcorrectie
+                  <p className="text-xs opacity-70 mt-0.5">
+                    Grondvlak {totaalFootprint} m², omgerekend naar de dakhelling
                   </p>
                 )}
               </div>
               {h?.nokhoogte && (
                 <div className="text-right">
-                  <p className="text-[10px] uppercase tracking-wider opacity-80">Nokhoogte</p>
-                  <p className="text-xl font-bold">{h.nokhoogte} m</p>
+                  <p className="text-xs uppercase tracking-wider opacity-80">Nokhoogte</p>
+                  <p className="text-xl font-bold">{Number(h.nokhoogte).toLocaleString('nl-BE')} m</p>
                 </div>
               )}
             </div>
@@ -260,7 +264,11 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
             </div>
           )}
 
-          {/* Detail velden */}
+          {/* Detail velden — achter "Meer details", het is vakjargon */}
+          <details className="border-t border-green-100">
+          <summary className="flex min-h-11 cursor-pointer items-center px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+            Meer details over het perceel
+          </summary>
           <div className="grid grid-cols-2 gap-px bg-green-100 text-xs">
             {h?.gebouwType && gebouwen.length === 1 && (
               <div className="bg-white px-3 py-2">
@@ -293,12 +301,13 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
               </div>
             )}
           </div>
+          </details>
         </>
       )}
 
       {/* Legenda */}
       {selectie && !selectie.error && (selectie.perceelGrenzen || gebouwen.length > 0) && (
-        <div className="px-3 py-1.5 flex gap-4 text-[10px] text-gray-600 bg-white border-t border-green-100">
+        <div className="px-3 py-1.5 flex gap-4 text-xs text-gray-600 bg-white border-t border-green-100">
           {selectie.perceelGrenzen && (
             <span className="flex items-center gap-1">
               <span className="inline-block w-4 h-0.5 border-t-2 border-dashed border-amber-500" /> Perceelgrens
@@ -313,7 +322,7 @@ export default function DakKaart({ lat, lng, initieleSelectie, onPerceelSelect }
       )}
 
       {/* Footer */}
-      <p className="px-3 py-1.5 text-[10px] text-green-700 bg-green-50">
+      <p className="px-3 py-1.5 text-xs text-green-700 bg-green-50">
         {selectie && !selectie.error
           ? '✓ Perceel geselecteerd · 3D GRB & kadaster © Vlaanderen'
           : 'Luchtfoto & kadaster © Vlaanderen · Klik op het juiste perceel'}

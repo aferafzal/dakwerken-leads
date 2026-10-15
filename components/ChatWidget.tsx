@@ -9,8 +9,14 @@ type Message = {
   created_at: string
 }
 
-export default function ChatWidget() {
-  const [open, setOpen] = useState(false)
+interface Props {
+  open: boolean
+  onClose: () => void
+}
+
+// Chatpaneel — geopend vanuit de ContactKnop. Blijft gemount zodat een
+// lopend gesprek bewaard blijft als het paneel even dicht gaat.
+export default function ChatWidget({ open, onClose }: Props) {
   const [step, setStep] = useState<'form' | 'chat'>('form')
   const [naam, setNaam] = useState('')
   const [email, setEmail] = useState('')
@@ -57,7 +63,7 @@ export default function ChatWidget() {
       setConversationId(id)
       setStep('chat')
     } catch {
-      setError('Kon gesprek niet starten. Probeer opnieuw.')
+      setError('Het gesprek kon niet starten. Probeer het opnieuw of stuur ons een WhatsApp.')
     } finally {
       setLoading(false)
     }
@@ -84,111 +90,105 @@ export default function ChatWidget() {
   }
 
   return (
-    <>
-      {/* Chat bubble knop — linksonder */}
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-6 left-6 z-50 w-14 h-14 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
-        aria-label="Open chat"
-      >
-        {open ? (
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div
+      role="dialog"
+      aria-label="Chat met Dakwerken Oost-Vlaanderen"
+      className={`w-80 max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl ${open ? 'flex' : 'hidden'}`}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-3 bg-navy px-4 py-3 text-white">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">Dakwerken Oost-Vlaanderen</p>
+          <p className="text-xs text-white/75">Meestal antwoord binnen 2 uur</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Sluit de chat"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-white/80 hover:bg-white/10 hover:text-white"
+        >
+          <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
-        ) : (
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-        )}
-      </button>
+        </button>
+      </div>
 
-      {/* Chat paneel */}
-      {open && (
-        <div className="fixed bottom-24 left-6 z-50 w-80 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
-          {/* Header */}
-          <div className="bg-blue-600 text-white px-4 py-3 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm font-bold">D</div>
-            <div>
-              <p className="font-semibold text-sm">Dakwerken Expert</p>
-              <p className="text-xs text-blue-100">Meestal antwoord binnen 2u</p>
-            </div>
-          </div>
-
-          {step === 'form' ? (
-            /* Stap 1: naam + e-mail */
-            <form onSubmit={startConversation} className="p-4 space-y-3">
-              <p className="text-sm text-gray-600">Stel uw vraag — we antwoorden zo snel mogelijk.</p>
-              <input
-                type="text"
-                placeholder="Uw naam *"
-                value={naam}
-                onChange={(e) => setNaam(e.target.value)}
-                required
-                minLength={2}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
-              />
-              <input
-                type="email"
-                placeholder="E-mailadres (optioneel)"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
-              />
-              {error && <p className="text-xs text-red-600">{error}</p>}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-lg bg-blue-600 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-              >
-                {loading ? 'Bezig…' : 'Start gesprek →'}
-              </button>
-            </form>
-          ) : (
-            /* Stap 2: berichten */
-            <>
-              <div className="flex-1 p-4 space-y-3 overflow-y-auto max-h-64">
-                {messages.length === 0 && (
-                  <p className="text-xs text-gray-400 text-center">
-                    Hallo {naam}! Stel gerust uw vraag.
-                  </p>
-                )}
-                {messages.map((m) => (
-                  <div key={m.id} className={`flex ${m.van === 'klant' ? 'justify-end' : 'justify-start'}`}>
-                    <div
-                      className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
-                        m.van === 'klant'
-                          ? 'bg-blue-600 text-white rounded-br-sm'
-                          : 'bg-gray-100 text-gray-900 rounded-bl-sm'
-                      }`}
-                    >
-                      {m.inhoud}
-                    </div>
-                  </div>
-                ))}
-                <div ref={bottomRef} />
-              </div>
-              <form onSubmit={sendMessage} className="border-t border-gray-100 p-3 flex gap-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Typ een bericht…"
-                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500"
-                />
-                <button
-                  type="submit"
-                  className="rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700"
+      {step === 'form' ? (
+        /* Stap 1: naam + e-mail */
+        <form onSubmit={startConversation} className="space-y-3 p-4">
+          <p className="text-sm text-gray-600">Stel uw vraag. We antwoorden zo snel mogelijk.</p>
+          <input
+            type="text"
+            aria-label="Uw naam"
+            placeholder="Uw naam *"
+            value={naam}
+            onChange={(e) => setNaam(e.target.value)}
+            required
+            minLength={2}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+          />
+          <input
+            type="email"
+            aria-label="Uw e-mailadres (optioneel)"
+            placeholder="E-mailadres (optioneel)"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+          />
+          {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-lg bg-navy py-2.5 text-sm font-semibold text-white hover:bg-navy-light disabled:opacity-60"
+          >
+            {loading ? 'Bezig…' : 'Start gesprek →'}
+          </button>
+        </form>
+      ) : (
+        /* Stap 2: berichten */
+        <>
+          <div className="max-h-64 flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
+            {messages.length === 0 && (
+              <p className="text-center text-xs text-gray-600">
+                Hallo {naam}! Stel gerust uw vraag.
+              </p>
+            )}
+            {messages.map((m) => (
+              <div key={m.id} className={`flex ${m.van === 'klant' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
+                    m.van === 'klant'
+                      ? 'rounded-br-sm bg-navy text-white'
+                      : 'rounded-bl-sm bg-gray-100 text-gray-900'
+                  }`}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                </button>
-              </form>
-            </>
-          )}
-        </div>
+                  {m.inhoud}
+                </div>
+              </div>
+            ))}
+            <div ref={bottomRef} />
+          </div>
+          <form onSubmit={sendMessage} className="flex gap-2 border-t border-gray-100 p-3">
+            <input
+              type="text"
+              aria-label="Uw bericht"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Typ een bericht…"
+              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-navy"
+            />
+            <button
+              type="submit"
+              aria-label="Verstuur"
+              className="rounded-lg bg-navy px-3 py-2 text-white hover:bg-navy-light"
+            >
+              <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </form>
+        </>
       )}
-    </>
+    </div>
   )
 }

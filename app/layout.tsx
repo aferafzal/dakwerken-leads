@@ -2,8 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import Link from 'next/link'
 import { Phone } from 'lucide-react'
-import WhatsAppButton from '@/components/WhatsAppButton'
-import ChatWidget from '@/components/ChatWidget'
+import ContactKnop from '@/components/ContactKnop'
 import { BEDRIJF, BEDRIJF_ADRES } from '@/lib/bedrijf'
 import './globals.css'
 
@@ -74,11 +73,7 @@ export default function RootLayout({
           </div>
         </footer>
 
-        <WhatsAppButton
-          phone={OWNER_WHATSAPP}
-          message="Hallo, ik heb een vraag over dakwerken in Oost-Vlaanderen."
-        />
-        <ChatWidget />
+        <ContactKnop whatsapp={OWNER_WHATSAPP} />
       </body>
     </html>
   )

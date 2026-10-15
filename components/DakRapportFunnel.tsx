@@ -61,6 +61,7 @@ export default function DakRapportFunnel() {
   const [adresWaarde, setAdresWaarde] = useState('')
   const [suggesties, setSuggesties] = useState<string[]>([])
   const [toonDropdown, setToonDropdown] = useState(false)
+  const [actief, setActief] = useState(-1)
   const [adresMelding, setAdresMelding] = useState<string | null>(null)
   const [meting, setMeting] = useState<DakmetingResultaat | null>(null)
   const [metingBezig, setMetingBezig] = useState(false)
@@ -115,6 +116,7 @@ export default function DakRapportFunnel() {
     setMeting(null)
     setPerceelSelectie(null)
     setAdresMelding(null)
+    setActief(-1)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (q.length < 4) {
       setSuggesties([])
@@ -128,6 +130,7 @@ export default function DakRapportFunnel() {
         const data = await res.json()
         const lijst: string[] = data.suggesties ?? []
         setSuggesties(lijst)
+        setActief(-1)
         setToonDropdown(lijst.length > 0)
         setAdresMelding(lijst.length > 0 ? null
           : 'Geen adres gevonden. Typ straat, huisnummer en gemeente, bijvoorbeeld: Korenmarkt 10, Gent.')
@@ -135,6 +138,32 @@ export default function DakRapportFunnel() {
         setAdresMelding('Adressen opzoeken lukt nu even niet. Probeer het zo meteen opnieuw.')
       }
     }, 300)
+  }
+
+  // Pijltjes, Enter en Escape in de adreslijst
+  function onAdresToets(e: React.KeyboardEvent<HTMLInputElement>) {
+    const lijstOpen = toonDropdown && suggesties.length > 0
+    if (e.key === 'ArrowDown') {
+      if (suggesties.length === 0) return
+      e.preventDefault()
+      setToonDropdown(true)
+      setActief((i) => (i + 1) % suggesties.length)
+    } else if (e.key === 'ArrowUp') {
+      if (!lijstOpen) return
+      e.preventDefault()
+      setActief((i) => (i <= 0 ? suggesties.length - 1 : i - 1))
+    } else if (e.key === 'Enter') {
+      if (!lijstOpen) return
+      e.preventDefault()
+      selecteerAdres(suggesties[actief >= 0 ? actief : 0])
+    } else if (e.key === 'Escape') {
+      if (!lijstOpen) return
+      // Sluit alleen de lijst, niet de modal (die luistert ook op document)
+      e.preventDefault()
+      e.nativeEvent.stopImmediatePropagation()
+      setToonDropdown(false)
+      setActief(-1)
+    }
   }
 
   async function selecteerAdres(adres: string) {
@@ -340,10 +369,10 @@ export default function DakRapportFunnel() {
     TOON_3D_PREVIEW.includes(stap) && lod2Status === 'done' && lod2Url
 
   return (
-    <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden">
+    <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-2xl">
       {/* Voortgangsbalk + terug-knop */}
       <div className="px-5 pt-5 pb-3 border-b border-gray-100">
-        <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
+        <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
           <div className="flex items-center gap-2">
             {vorigeStap && (
               <button
@@ -361,7 +390,7 @@ export default function DakRapportFunnel() {
         </div>
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div
-            className="h-full bg-green-600 transition-all duration-500 ease-out"
+            className="h-full bg-green-700 transition-all duration-500 ease-out"
             style={{ width: `${voortgang}%` }}
           />
         </div>
@@ -403,10 +432,16 @@ export default function DakRapportFunnel() {
                   id="adres"
                   type="text"
                   autoComplete="off"
-                  placeholder="Begin met typen…"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 pr-9 text-base text-gray-900 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={toonDropdown && suggesties.length > 0}
+                  aria-controls="adres-suggesties"
+                  aria-activedescendant={actief >= 0 ? `adres-optie-${actief}` : undefined}
+                  placeholder="Straat, huisnummer, gemeente"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 pr-9 text-base text-gray-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-700/25"
                   value={adresWaarde}
                   onChange={onAdresInput}
+                  onKeyDown={onAdresToets}
                   onBlur={() => setTimeout(() => setToonDropdown(false), 150)}
                   onFocus={() => suggesties.length > 0 && setToonDropdown(true)}
                 />
@@ -421,16 +456,28 @@ export default function DakRapportFunnel() {
               </div>
 
               {toonDropdown && suggesties.length > 0 && (
-                <ul className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden">
-                  {suggesties.map((s) => (
-                    <li key={s}>
-                      <button
-                        type="button"
-                        className="w-full px-3 py-2.5 text-left text-sm text-gray-800 hover:bg-green-50 hover:text-green-800 transition-colors"
-                        onMouseDown={() => selecteerAdres(s)}
-                      >
-                        {s}
-                      </button>
+                <ul
+                  id="adres-suggesties"
+                  role="listbox"
+                  aria-label="Gevonden adressen"
+                  className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
+                >
+                  {suggesties.map((s, i) => (
+                    <li
+                      key={s}
+                      id={`adres-optie-${i}`}
+                      role="option"
+                      aria-selected={i === actief}
+                      className={`cursor-pointer px-3 py-3 text-sm transition-colors ${
+                        i === actief ? 'bg-green-50 text-green-900' : 'text-gray-800'
+                      }`}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        selecteerAdres(s)
+                      }}
+                      onMouseEnter={() => setActief(i)}
+                    >
+                      {s}
                     </li>
                   ))}
                 </ul>
@@ -503,7 +550,7 @@ export default function DakRapportFunnel() {
               <button
                 onClick={naarPreview}
                 disabled={!totaalDak}
-                className="flex-1 rounded-lg bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 rounded-lg bg-green-700 px-4 py-3 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {totaalDak ? `Bekijk resultaat (±${totaalDak} m²) →` : 'Klik eerst op uw dak'}
               </button>
@@ -550,15 +597,15 @@ export default function DakRapportFunnel() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-xl bg-green-700 text-white p-4">
-                <p className="text-[10px] uppercase tracking-wider opacity-75 mb-1">Dakoppervlakte</p>
+                <p className="text-xs uppercase tracking-wider opacity-75 mb-1">Dakoppervlakte</p>
                 <p className="text-2xl font-bold">±{totaalDak} m²</p>
                 {aantalGebouwen > 1 && (
-                  <p className="text-[10px] opacity-75 mt-0.5">{aantalGebouwen} gebouwen</p>
+                  <p className="text-xs opacity-75 mt-0.5">{aantalGebouwen} gebouwen</p>
                 )}
               </div>
               <div className="rounded-xl bg-gray-50 border border-gray-200 p-4">
-                <p className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">Nokhoogte</p>
-                <p className="text-2xl font-bold text-gray-900">{nokhoogte ? `${nokhoogte} m` : 'Onbekend'}</p>
+                <p className="text-xs uppercase tracking-wider text-gray-500 mb-1">Nokhoogte</p>
+                <p className="text-2xl font-bold text-gray-900">{nokhoogte ? `${Number(nokhoogte).toLocaleString('nl-BE')} m` : 'Onbekend'}</p>
               </div>
             </div>
 
@@ -572,7 +619,7 @@ export default function DakRapportFunnel() {
 
             <button
               onClick={() => setStap('email')}
-              className="w-full rounded-lg bg-green-600 px-4 py-3.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+              className="w-full rounded-lg bg-green-700 px-4 py-3.5 text-sm font-semibold text-white hover:bg-green-800 transition-colors"
             >
               Stuur mij het volledige rapport
             </button>
@@ -606,7 +653,7 @@ export default function DakRapportFunnel() {
                 autoComplete="email"
                 required
                 placeholder="naam@voorbeeld.be"
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-700/25"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -629,7 +676,7 @@ export default function DakRapportFunnel() {
             <button
               type="submit"
               disabled={bezig}
-              className="w-full rounded-lg bg-green-600 px-4 py-3.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
+              className="w-full rounded-lg bg-green-700 px-4 py-3.5 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-60 transition-colors"
             >
               {bezig ? 'Bezig…' : 'Stuur mijn rapport →'}
             </button>
@@ -728,7 +775,7 @@ export default function DakRapportFunnel() {
                           : 'border-gray-200 text-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      <span className={`inline-block w-4 h-4 rounded border-2 flex-shrink-0 ${checked ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
+                      <span className={`inline-block w-4 h-4 rounded border-2 flex-shrink-0 ${checked ? 'bg-green-700 border-green-600' : 'border-gray-300'}`}>
                         {checked && (
                           <svg viewBox="0 0 20 20" fill="white" className="w-full h-full"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
                         )}
@@ -750,7 +797,7 @@ export default function DakRapportFunnel() {
               <button
                 onClick={submitVragenlijst}
                 disabled={bezig}
-                className="flex-1 rounded-lg bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
+                className="flex-1 rounded-lg bg-green-700 px-4 py-3 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-60 transition-colors"
               >
                 {bezig ? 'Bezig…' : 'Vul mijn rapport aan →'}
               </button>
@@ -785,7 +832,7 @@ export default function DakRapportFunnel() {
                 autoComplete="name"
                 required
                 placeholder="Jan Janssen"
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-700/25"
                 value={naam}
                 onChange={(e) => setNaam(e.target.value)}
               />
@@ -799,7 +846,7 @@ export default function DakRapportFunnel() {
                 autoComplete="tel"
                 required
                 placeholder="0470 12 34 56"
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-700/25"
                 value={telefoon}
                 onChange={(e) => setTelefoon(e.target.value)}
               />
@@ -830,7 +877,7 @@ export default function DakRapportFunnel() {
             <button
               type="submit"
               disabled={bezig}
-              className="w-full rounded-lg bg-green-600 px-4 py-3.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
+              className="w-full rounded-lg bg-green-700 px-4 py-3.5 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-60 transition-colors"
             >
               {bezig ? 'Bezig…' : 'Bel mij gratis terug'}
             </button>

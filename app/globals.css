@@ -41,6 +41,22 @@
   }
 }
 
+/* ── Toegankelijkheid ────────────────────────────────────────── */
+/* Zichtbare focus voor toetsenbordgebruikers: oranje-700 haalt ≥3:1 op wit én op navy */
+:where(a, button, summary, [role="option"], input[type="checkbox"]):focus-visible {
+  outline: 3px solid #c2410c;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ── Herbruikbare utility classes (geporteerd van Lovable) ───── */
 @layer components {
   .section-padding {
