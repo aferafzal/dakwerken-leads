@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { isBeheerder } from '@/lib/beheer-auth'
 
 const messageSchema = z.object({
   conversation_id: z.string().uuid(),
@@ -19,6 +20,11 @@ export async function POST(request: Request) {
   const parsed = messageSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: 'Validatiefout' }, { status: 422 })
+  }
+
+  // Alleen beheer mag antwoorden "als ons"; bezoekers sturen enkel klantberichten
+  if (parsed.data.van === 'ons' && !isBeheerder(request.headers.get('authorization'))) {
+    return NextResponse.json({ error: 'Niet toegestaan' }, { status: 403 })
   }
 
   const supabase = await createClient()
