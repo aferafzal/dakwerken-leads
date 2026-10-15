@@ -1,5 +1,8 @@
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
+import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { isBeheerder } from '@/lib/beheer-auth'
 
 export const metadata: Metadata = {
   title: 'Dashboard — Leads Overzicht',
@@ -15,6 +18,9 @@ const statusKleuren: Record<string, string> = {
 }
 
 export default async function DashboardPage() {
+  // Tweede controle naast proxy.ts: zonder geldige login geen persoonsgegevens
+  if (!isBeheerder((await headers()).get('authorization'))) notFound()
+
   let leads: Record<string, unknown>[] = []
   let conversations: Record<string, unknown>[] = []
   let fout: string | null = null

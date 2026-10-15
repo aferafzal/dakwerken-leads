@@ -61,7 +61,6 @@ export default function RootLayout({
                 <a href={`tel:${OWNER_PHONE}`} className="hover:text-white transition-colors">{OWNER_PHONE}</a>
                 <a href={`https://wa.me/${OWNER_WHATSAPP}`} target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">WhatsApp</a>
                 <Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link>
-                <Link href="/dashboard" className="hover:text-white transition-colors">Dashboard</Link>
               </div>
             </div>
             <p className="mt-6 text-xs text-white/20">
