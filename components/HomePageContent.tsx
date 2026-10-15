@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { motion, useReducedMotion } from 'motion/react'
 import LeadFormModal from '@/components/LeadFormModal'
+import VoorbeeldResultaat from '@/components/VoorbeeldResultaat'
 import { steden } from '@/lib/steden'
 
 // ─────────────────────────────────────────────────────────────
@@ -142,8 +143,8 @@ export default function HomePageContent() {
 
         {/* Scroll-hint */}
         <motion.a
-          href="#hoe-werkt"
-          aria-label="Naar: zo werkt het"
+          href="#voorbeeld"
+          aria-label="Naar: zo ziet uw resultaat eruit"
           className="absolute bottom-7 left-1/2 z-10 flex h-11 w-11 -translate-x-1/2 items-center justify-center text-white/50 hover:text-white/80"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -159,6 +160,11 @@ export default function HomePageContent() {
           </motion.span>
         </motion.a>
       </section>
+
+      {/* ════════════════════════════════════════════════════
+          ZO ZIET UW RESULTAAT ERUIT — bewijs vóór de klik
+      ════════════════════════════════════════════════════ */}
+      <VoorbeeldResultaat onStart={() => setFormOpen(true)} />
 
       {/* ════════════════════════════════════════════════════
           ZO WERKT HET
