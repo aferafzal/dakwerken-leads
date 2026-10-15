@@ -89,7 +89,7 @@ export default function LeadFormModal({ open, onClose }: Props) {
           </svg>
         </button>
 
-        <DakRapportFunnel />
+        <DakRapportFunnel zichtbaar={open} />
       </div>
     </div>
   )

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import Link from 'next/link'
 import { Phone } from 'lucide-react'
+import { Analytics } from '@vercel/analytics/next'
 import ContactKnop from '@/components/ContactKnop'
 import { BEDRIJF, BEDRIJF_ADRES } from '@/lib/bedrijf'
 import './globals.css'
@@ -74,6 +75,7 @@ export default function RootLayout({
         </footer>
 
         <ContactKnop whatsapp={OWNER_WHATSAPP} />
+        <Analytics />
       </body>
     </html>
   )

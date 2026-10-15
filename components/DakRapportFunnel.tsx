@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Check, CircleCheck } from 'lucide-react'
+import { hoofdGebouw } from '@/lib/dak'
 import type { DakmetingResultaat } from '@/app/api/dakmeting/route'
 import type { PerceelSelectie } from './DakKaart'
 import {
@@ -45,17 +46,34 @@ const BELMOMENT: Record<'direct' | 'vandaag' | 'morgen', string> = {
 
 const OWNER_PHONE = process.env.NEXT_PUBLIC_OWNER_PHONE ?? ''
 
-// Steppen waar 3D-model als compacte preview blijft staan (na de eerste keer)
-const TOON_3D_PREVIEW: Stap[] = ['email', 'vragenlijst', 'telefoon']
-
 function genSessionId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
-export default function DakRapportFunnel() {
+interface Props {
+  // false zolang de modal dicht is: dan tellen we nog geen stappen
+  zichtbaar?: boolean
+}
+
+export default function DakRapportFunnel({ zichtbaar = true }: Props) {
   const [stap, setStap] = useState<Stap>('adres')
   const [sessionId] = useState(genSessionId)
+
+  // Anonieme stapstatistiek: één keer per stap per sessie, enkel als de funnel open is
+  const gelogd = useRef<Set<Stap>>(new Set())
+  useEffect(() => {
+    if (!zichtbaar || gelogd.current.has(stap)) return
+    gelogd.current.add(stap)
+    const payload = JSON.stringify({ sessionId, stap })
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/funnel/event', new Blob([payload], { type: 'application/json' }))
+      } else {
+        void fetch('/api/funnel/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true })
+      }
+    } catch { /* statistiek is nooit kritiek */ }
+  }, [stap, zichtbaar, sessionId])
 
   // Adres + scan-data
   const [adresWaarde, setAdresWaarde] = useState('')
@@ -84,15 +102,6 @@ export default function DakRapportFunnel() {
     setTypeWerken((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t])
   }
 
-  // LOD2 3D-model
-  const [lod2Status, setLod2Status] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
-  const [lod2Url, setLod2Url] = useState<string | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  useEffect(() => {
-    return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [])
-
   // Telefoon-stap
   const [naam, setNaam] = useState('')
   const [telefoon, setTelefoon] = useState('')
@@ -106,8 +115,9 @@ export default function DakRapportFunnel() {
     ?? null
 
   const aantalGebouwen = perceelSelectie?.gebouwen?.length ?? (meting?.oppervlakte ? 1 : 0)
-  const nokhoogte = perceelSelectie?.gebouwen?.[0]?.hoogte3d?.nokhoogte ?? meting?.hoogte3d?.nokhoogte ?? null
-  const daktype = perceelSelectie?.gebouwen?.[0]?.hoogte3d?.gebouwType ?? meting?.hoogte3d?.gebouwType ?? null
+  const hoofd = hoofdGebouw(perceelSelectie?.gebouwen)
+  const nokhoogte = hoofd?.hoogte3d?.nokhoogte ?? meting?.hoogte3d?.nokhoogte ?? null
+  const daktype = hoofd?.hoogte3d?.gebouwType ?? meting?.hoogte3d?.gebouwType ?? null
 
   // ── Adres autocomplete ──────────────────────────────────────────
   function onAdresInput(e: React.ChangeEvent<HTMLInputElement>) {
@@ -184,71 +194,26 @@ export default function DakRapportFunnel() {
     setPerceelSelectie(data)
   }
 
-  async function naarPreview() {
+  function naarPreview() {
     setStap('preview')
 
+    // Het 3D-model wordt op de achtergrond gemaakt voor het rapport.
+    // In de funnel tonen we het niet: de 2D-meting is sneller en betrouwbaarder.
     const capakey = perceelSelectie?.capakey ?? meting?.capakey
-    const allGebouwen = perceelSelectie?.gebouwen ?? []
-    if (!capakey || allGebouwen.length === 0) return
-
-    setLod2Status('loading')
-    setLod2Url(null)
-
-    const gebouwenPayload = allGebouwen
+    const gebouwenPayload = (perceelSelectie?.gebouwen ?? [])
       .filter((g) => g.grenzen && g.grenzen.length >= 3)
       .map((g) => ({
         footprint_wgs84: g.grenzen,
         nokhoogte: g.hoogte3d?.nokhoogte ?? null,
         gebouwType: g.hoogte3d?.gebouwType ?? null,
       }))
+    if (!capakey || gebouwenPayload.length === 0) return
 
-    if (gebouwenPayload.length === 0) {
-      setLod2Status('error')
-      return
-    }
-
-    try {
-      const res = await fetch('/api/lod2/trigger', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ capakey, gebouwen: gebouwenPayload }),
-      })
-      const data = await res.json()
-
-      if (data.status === 'done' && data.url) {
-        setLod2Url(data.url)
-        setLod2Status('done')
-        return
-      }
-    } catch {
-      setLod2Status('error')
-      return
-    }
-
-    // Polling elke 10s totdat Blob klaar is
-    const safe = (perceelSelectie?.capakey ?? meting?.capakey ?? '').replace(/\//g, '_')
-    const interval = setInterval(async () => {
-      try {
-        const r = await fetch(`/api/lod2/status/${encodeURIComponent(safe)}`)
-        const d = await r.json()
-        if (d.status === 'done' && d.url) {
-          setLod2Url(d.url)
-          setLod2Status('done')
-          clearInterval(interval)
-          pollRef.current = null
-        }
-      } catch { /* stil falen */ }
-    }, 10_000)
-    pollRef.current = interval
-
-    // Geef op na 5 minuten
-    setTimeout(() => {
-      if (pollRef.current === interval) {
-        clearInterval(interval)
-        pollRef.current = null
-        setLod2Status((s) => (s === 'loading' ? 'error' : s))
-      }
-    }, 300_000)
+    void fetch('/api/lod2/trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ capakey, gebouwen: gebouwenPayload }),
+    }).catch(() => { /* rapport valt terug op 2D */ })
   }
 
   // ── API: Email-stap (status='warm') ─────────────────────────────
@@ -365,8 +330,6 @@ export default function DakRapportFunnel() {
     if (vorigeStap) setStap(vorigeStap)
   }
 
-  const toonCompactePreview =
-    TOON_3D_PREVIEW.includes(stap) && lod2Status === 'done' && lod2Url
 
   return (
     <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-2xl">
@@ -395,20 +358,6 @@ export default function DakRapportFunnel() {
           />
         </div>
       </div>
-
-      {/* Compact 3D-preview die meereist door de funnel */}
-      {toonCompactePreview && (
-        <div className="px-5 pt-3">
-          <div className="rounded-lg overflow-hidden bg-gray-900 border border-gray-200" style={{ height: 140 }}>
-            <iframe
-              src={`/lod2-viewer.html?glb=${encodeURIComponent(lod2Url!)}&lat=${meting?.lat ?? ''}&lng=${meting?.lng ?? ''}`}
-              className="w-full h-full border-0"
-              title="3D Dakmodel"
-              loading="lazy"
-            />
-          </div>
-        </div>
-      )}
 
       <div className="p-6 sm:p-8">
         {/* ─── Stap 1 — Adres ─── */}
@@ -568,32 +517,6 @@ export default function DakRapportFunnel() {
               </div>
               <h2 className="text-xl font-bold text-gray-900">Uw dak in cijfers</h2>
             </div>
-
-            {/* ─── 3D viewer ─── */}
-            {lod2Status !== 'idle' && (
-              <div className="w-full rounded-xl overflow-hidden bg-gray-900" style={{ height: 280 }}>
-                {lod2Status === 'loading' && (
-                  <div className="h-full flex flex-col items-center justify-center gap-2 text-white text-sm">
-                    <span className="inline-block w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>3D dakmodel wordt berekend…</span>
-                    <span className="text-xs opacity-50">30–90 seconden</span>
-                  </div>
-                )}
-                {lod2Status === 'done' && lod2Url && (
-                  <iframe
-                    src={`/lod2-viewer.html?glb=${encodeURIComponent(lod2Url)}&lat=${meting?.lat ?? ''}&lng=${meting?.lng ?? ''}`}
-                    className="w-full h-full border-0"
-                    title="3D Dakmodel"
-                    loading="lazy"
-                  />
-                )}
-                {lod2Status === 'error' && (
-                  <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-                    3D model kon niet worden geladen
-                  </div>
-                )}
-              </div>
-            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-xl bg-green-700 text-white p-4">

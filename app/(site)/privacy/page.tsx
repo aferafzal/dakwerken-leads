@@ -123,6 +123,11 @@ export default function PrivacyPage() {
             Deze site gebruikt geen cookies om u te volgen of advertenties te tonen. Het straatbeeld
             van Google op de rapportpagina kan wel cookies van Google plaatsen.
           </p>
+          <p>
+            We tellen wel anoniem hoeveel bezoekers de site bekijken en welke stap van de aanvraag
+            ze bereiken. Daarvoor gebruiken we Vercel Web Analytics en een eigen teller, zonder
+            cookies en zonder u te herkennen.
+          </p>
         </Blok>
 
         <Blok titel="Uw rechten">

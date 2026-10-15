@@ -9,6 +9,17 @@ export const metadata: Metadata = {
   robots: { index: false },
 }
 
+// Funnelstappen zoals de anonieme teller ze registreert (zie migrations/004)
+const FUNNEL_STAPPEN: { stap: string; label: string }[] = [
+  { stap: 'adres',       label: 'Funnel geopend' },
+  { stap: 'scan',        label: 'Adres gekozen' },
+  { stap: 'preview',     label: 'Dak bekeken' },
+  { stap: 'email',       label: 'Bij de e-mailstap' },
+  { stap: 'vragenlijst', label: 'Rapport aangevraagd' },
+  { stap: 'telefoon',    label: 'Bij de telefoonstap' },
+  { stap: 'klaar',       label: 'Belafspraak gevraagd' },
+]
+
 const statusKleuren: Record<string, string> = {
   nieuw: 'bg-blue-100 text-blue-800',
   gebeld: 'bg-yellow-100 text-yellow-800',
@@ -24,6 +35,8 @@ export default async function DashboardPage() {
   let leads: Record<string, unknown>[] = []
   let conversations: Record<string, unknown>[] = []
   let fout: string | null = null
+  let funnel: { label: string; aantal: number; pct: number }[] = []
+  let funnelFout: string | null = null
 
   try {
     const supabase = await createClient()
@@ -41,8 +54,54 @@ export default async function DashboardPage() {
         : 'Supabase niet geconfigureerd. Stel SUPABASE_SERVICE_ROLE_KEY in.'
   }
 
+  // Funnel: unieke sessies per stap, laatste 30 dagen
+  try {
+    const supabase = await createClient()
+    const sinds = new Date(Date.now() - 30 * 86_400_000).toISOString()
+    const { data, error } = await supabase
+      .from('funnel_events')
+      .select('session_id, stap')
+      .gte('created_at', sinds)
+      .limit(50_000)
+    if (error) throw error
+    const perStap = new Map<string, Set<string>>()
+    for (const rij of data ?? []) {
+      if (!perStap.has(rij.stap)) perStap.set(rij.stap, new Set())
+      perStap.get(rij.stap)!.add(rij.session_id)
+    }
+    const basis = perStap.get('adres')?.size ?? 0
+    funnel = FUNNEL_STAPPEN.map(({ stap, label }) => {
+      const aantal = perStap.get(stap)?.size ?? 0
+      return { label, aantal, pct: basis ? Math.round((aantal / basis) * 100) : 0 }
+    })
+  } catch {
+    funnelFout = 'Nog geen funnelgegevens. Voer migrations/004_funnel_events.sql uit in de Supabase SQL-editor.'
+  }
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 space-y-12">
+    <div className="mx-auto max-w-6xl px-4 pt-28 pb-10 space-y-12">
+      {/* ── Funnel ── */}
+      <section>
+        <h2 className="mb-6 text-xl font-bold text-gray-900">Funnel · laatste 30 dagen</h2>
+        {funnelFout ? (
+          <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900">{funnelFout}</div>
+        ) : (
+          <div className="space-y-2 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            {funnel.map((f) => (
+              <div key={f.label} className="grid grid-cols-[180px_1fr_110px] items-center gap-3 text-sm">
+                <span className="text-gray-700">{f.label}</span>
+                <div className="h-3 rounded bg-gray-100">
+                  <div className="h-3 rounded bg-navy" style={{ width: `${f.pct}%` }} />
+                </div>
+                <span className="text-right tabular-nums text-gray-900">
+                  {f.aantal} <span className="text-gray-500">({f.pct}%)</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* ── Leads ── */}
       <section>
         <div className="mb-6 flex items-center justify-between">
