@@ -47,6 +47,7 @@ export type Dakscan = {
   vlakken: Dakvlak[]
   raster: {
     noord: number; zuid: number; west: number; oost: number  // WGS84-grenzen van het beeld
+    lambert: [number, number, number, number]                 // x0, y0, x1, y1 (Lambert72) — exact, voor het rapport
     breedte: number; hoogte: number
     cellen: string             // rij per rij van noord naar zuid; '.' = buiten het gebouw
   } | null
@@ -65,7 +66,7 @@ const MIN_VLAK_M2 = 1.5      // kleinere stukjes worden bij de buur gevoegd
 
 // ─── Ophalen ────────────────────────────────────────────────────────
 
-async function gebouwOmtrek(id: string): Promise<[number, number][] | null> {
+export async function gebouwOmtrek(id: string): Promise<[number, number][] | null> {
   const res = await fetch(`${BASISREG}/gebouwen/${id}`, { next: { revalidate: 86400 } })
   if (!res.ok) return null
   const gebouw = await res.json()
@@ -455,6 +456,7 @@ async function meetDak(gebouwId: string, ring: [number, number][]): Promise<Omit
       zuid: Math.min(...hoeken.map(([lat]) => lat)),
       west: Math.min(...hoeken.map(([, lng]) => lng)),
       oost: Math.max(...hoeken.map(([, lng]) => lng)),
+      lambert: [dsm.x0, dsm.y0 - H, dsm.x0 + W, dsm.y0],
       breedte: BW,
       hoogte: BH,
       cellen,

@@ -14,6 +14,12 @@ export function naarWgs84([x, y]: [number, number]): [number, number] {
   return [lat, lng]
 }
 
+/** WGS84 [lat, lng] → Lambert72 [x, y] */
+export function naarLambert([lat, lng]: [number, number]): [number, number] {
+  const [x, y] = proj4('EPSG:4326', 'EPSG:31370', [lng, lat])
+  return [x, y]
+}
+
 /** Lambert72 [x,y][] → WGS84 [lat,lng][] voor Leaflet */
 export function lambert72ToWgs84(coords: [number, number][]): [number, number][] {
   return coords.map(naarWgs84)
