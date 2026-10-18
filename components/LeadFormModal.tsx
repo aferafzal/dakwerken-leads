@@ -67,7 +67,7 @@ export default function LeadFormModal({ open, onClose, startVerzoek = null }: Pr
 
   return (
     <div
-      className={`fixed inset-0 z-[100] items-start justify-center overflow-y-auto p-4 sm:items-center ${open ? 'flex' : 'hidden'}`}
+      className={`fixed inset-0 z-[100] items-start justify-center overflow-y-auto px-4 py-8 ${open ? 'flex' : 'hidden'}`}
       role="dialog"
       aria-modal="true"
       aria-label="Gratis dakrapport"
@@ -78,8 +78,8 @@ export default function LeadFormModal({ open, onClose, startVerzoek = null }: Pr
         onClick={() => sluitRef.current()}
       />
 
-      {/* Paneel — wrapper rond DakRapportFunnel met sluitknop */}
-      <div ref={panelRef} className="relative z-10 my-8 w-full max-w-2xl">
+      {/* Paneel — my-auto centreert alleen als er plaats is; een hoge stap blijft volledig scrollbaar */}
+      <div ref={panelRef} className="relative z-10 my-auto w-full max-w-2xl">
         <button
           type="button"
           onClick={() => sluitRef.current()}

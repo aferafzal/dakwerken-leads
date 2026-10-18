@@ -284,7 +284,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
   return (
     <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-2xl">
       {/* Voortgangsbalk + terug-knop */}
-      <div className="px-5 pt-5 pb-3 border-b border-gray-100">
+      <div className="pl-5 pr-14 pt-5 pb-3 border-b border-gray-100">
         <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
           <div className="flex items-center gap-2">
             {vorigeStap && (

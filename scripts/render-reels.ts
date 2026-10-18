@@ -61,7 +61,7 @@ async function main() {
 
   if (!fs.existsSync(REEL_ENTRY)) {
     console.log('⚠️  remotion/BeforeAfterReel/index.tsx niet gevonden.')
-    console.log('   Maak de compositie eerst aan of gebruik de SpotableExplainer als basis.')
+    console.log('   Maak de compositie eerst aan of gebruik remotion/DakRapportDemo als voorbeeld.')
     return
   }
 

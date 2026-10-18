@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { motion, useReducedMotion } from 'motion/react'
 import LeadFormModal from '@/components/LeadFormModal'
-import VoorbeeldResultaat from '@/components/VoorbeeldResultaat'
 import AdresZoeker from '@/components/AdresZoeker'
 
 // ─────────────────────────────────────────────────────────────
@@ -62,6 +61,10 @@ export default function HomePageContent() {
   const [heroPauze,    setHeroPauze]    = useState(false)
   const reduce    = useReducedMotion()
   const heroVideo = useRef<HTMLVideoElement>(null)
+  const demoVideo = useRef<HTMLVideoElement>(null)
+  const [demoSpeelt, setDemoSpeelt] = useState(false)
+  // Pauzeert de bezoeker de demo zelf, dan start ze niet vanzelf opnieuw
+  const demoHandmatigGepauzeerd = useRef(false)
 
   // Wie minder beweging wil, krijgt een stilstaande hero
   useEffect(() => {
@@ -70,6 +73,33 @@ export default function HomePageContent() {
       setHeroPauze(true)
     }
   }, [reduce])
+
+  // Demovideo speelt (zonder geluid) alleen als ze in beeld is
+  useEffect(() => {
+    const v = demoVideo.current
+    if (!v || reduce) return
+    const waarnemer = new IntersectionObserver(
+      ([item]) => {
+        if (item.isIntersecting && !demoHandmatigGepauzeerd.current) void v.play().catch(() => {})
+        else if (!item.isIntersecting) v.pause()
+      },
+      { threshold: 0.4 },
+    )
+    waarnemer.observe(v)
+    return () => waarnemer.disconnect()
+  }, [reduce])
+
+  function toggleDemo() {
+    const v = demoVideo.current
+    if (!v) return
+    if (v.paused) {
+      demoHandmatigGepauzeerd.current = false
+      void v.play().catch(() => {})
+    } else {
+      demoHandmatigGepauzeerd.current = true
+      v.pause()
+    }
+  }
 
   function toggleHeroVideo() {
     const v = heroVideo.current
@@ -171,32 +201,64 @@ export default function HomePageContent() {
       </section>
 
       {/* ════════════════════════════════════════════════════
-          IN DRIE STAPPEN
-          (de nieuwe demovideo komt hier in stap 9)
+          IN DRIE STAPPEN — met de demovideo van de echte tool
+          (scripts/demo-opname.ts + scripts/render-demo.ts)
       ════════════════════════════════════════════════════ */}
       <section id="hoe-werkt" className="bg-white px-4 py-24 sm:px-6 sm:py-28 lg:px-8">
-        <div className="mx-auto max-w-6xl">
-          <h2 className="text-4xl font-black leading-tight text-balance sm:text-5xl" style={{ color: NAVY }}>
-            In drie stappen
-          </h2>
-          <ol className="mt-12 grid gap-10 sm:grid-cols-3">
-            {STAPPEN.map((s) => (
-              <li key={s.nr}>
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: NAVY }}>
-                  <span className="text-xs font-black" style={{ color: AMBER }}>{s.nr}</span>
-                </div>
-                <h3 className="mt-5 text-lg font-bold" style={{ color: NAVY }}>{s.t}</h3>
-                <p className="mt-2 text-base leading-relaxed" style={{ color: TEKST_GEDEMPT }}>{s.d}</p>
-              </li>
-            ))}
-          </ol>
+        <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          <div>
+            <h2 className="text-4xl font-black leading-tight text-balance sm:text-5xl" style={{ color: NAVY }}>
+              In drie stappen
+            </h2>
+            <ol className="mt-10 space-y-8">
+              {STAPPEN.map((s) => (
+                <li key={s.nr} className="flex gap-5">
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl" style={{ background: NAVY }}>
+                    <span className="text-xs font-black" style={{ color: AMBER }}>{s.nr}</span>
+                  </div>
+                  <div className="pt-0.5">
+                    <h3 className="text-lg font-bold" style={{ color: NAVY }}>{s.t}</h3>
+                    <p className="mt-1 text-base leading-relaxed" style={{ color: TEKST_GEDEMPT }}>{s.d}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Eigen knop i.p.v. browserbediening: die zou de ondertitels in de video bedekken */}
+          <div className="relative">
+            <video
+              ref={demoVideo}
+              className="aspect-video w-full rounded-2xl shadow-xl"
+              style={{ background: NAVY }}
+              poster="/demo-poster.jpg"
+              muted
+              loop
+              playsInline
+              preload="none"
+              onPlay={() => setDemoSpeelt(true)}
+              onPause={() => setDemoSpeelt(false)}
+              onClick={toggleDemo}
+              aria-label="Demo van 25 seconden: adres typen, dak aanduiden op de kaart, oppervlakte zien en het rapport ontvangen"
+            >
+              <source src="/demo.mp4" type="video/mp4" />
+            </video>
+            <button
+              type="button"
+              onClick={toggleDemo}
+              aria-label={demoSpeelt ? 'Demo pauzeren' : 'Demo afspelen'}
+              className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full text-white backdrop-blur-sm transition-colors hover:bg-black/70"
+              style={{ background: 'rgba(15, 23, 42, 0.65)' }}
+            >
+              {demoSpeelt ? (
+                <svg aria-hidden="true" className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z" /></svg>
+              ) : (
+                <svg aria-hidden="true" className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+              )}
+            </button>
+          </div>
         </div>
       </section>
-
-      {/* ════════════════════════════════════════════════════
-          ZO ZIET UW RAPPORT ERUIT
-      ════════════════════════════════════════════════════ */}
-      <VoorbeeldResultaat onStart={() => setFormOpen(true)} />
 
       {/* ════════════════════════════════════════════════════
           EERST UW RAPPORT. DAARNA BESLIST U. + WIE ZIT ERACHTER
