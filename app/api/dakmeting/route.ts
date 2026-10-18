@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import proj4 from 'proj4'
+import { extractCoordsFromGml, lambert72ToWgs84, proj4, shoelace } from '@/lib/lambert'
+import type { Dakscan } from '@/lib/dakscan'
 
 const GEO      = 'https://geo.api.vlaanderen.be/Geolocation/v4'
 const BASISREG = 'https://api.basisregisters.vlaanderen.be/v2'
@@ -7,12 +8,6 @@ const CAPAKEY  = 'https://geo.api.vlaanderen.be/capakey/v2'
 
 const WMS_LUCHT = 'https://geo.api.vlaanderen.be/OMWRGBMRVL/wms'
 const WMS_3DGRB = 'https://geo.api.vlaanderen.be/3DGRB/wms'
-
-// Lambert72 projectie (Belgisch kadaster)
-proj4.defs(
-  'EPSG:31370',
-  '+proj=lcc +lat_1=51.16667723333333 +lat_2=49.8333339 +lat_0=90 +lon_0=4.367486666666666 +x_0=150000.013 +y_0=5400088.438 +ellps=intl +towgs84=-106.868628,52.297783,-103.723893,0.336570,-0.456955,1.842183,-1.2747 +units=m +no_defs'
-)
 
 export type Hoogte3D = {
   nokhoogte:    number | null   // HN_P99 — gebouwhoogte (nok) in meter
@@ -37,6 +32,10 @@ export type DakmetingResultaat = {
 }
 
 export type GebouwInfo = {
+  id:           string | null   // gebouw-ID uit het Gebouwenregister (voor /api/dakscan)
+  aangeduid?:   boolean         // het gebouw waarop de bezoeker tikte (of waar het adres ligt)
+  meetellen?:   boolean         // telt mee in de dakoppervlakte (standaard enkel het aangeduide gebouw)
+  scan?:        Dakscan | null  // echte dakvlakken uit de laserhoogtemeting (door de kaart aangevuld)
   oppervlakte:  number
   dakOppervlak: number | null
   grenzen:      [number, number][]  // [lat, lng][] polygon
@@ -64,7 +63,7 @@ export async function GET(req: NextRequest) {
   const clickLng  = req.nextUrl.searchParams.get('click_lng')
 
   if (q)                    return suggesties(q)
-  if (adres)                return meting(adres)
+  if (adres)                return meting(adres, req.nextUrl.searchParams.get('snel') === '1')
   if (clickLat && clickLng) return perceelKlik(parseFloat(clickLat), parseFloat(clickLng))
   return NextResponse.json({ error: 'q, adres of click_lat/click_lng parameter vereist' }, { status: 400 })
 }
@@ -85,7 +84,8 @@ async function suggesties(q: string) {
 }
 
 // ─── Adres → volledige meting ────────────────────────────────────────
-async function meting(adres: string): Promise<NextResponse> {
+// snel: enkel de ligging (voor de kaart); perceel en gebouwen haalt de kaart zelf op
+async function meting(adres: string, snel = false): Promise<NextResponse> {
   const leeg: DakmetingResultaat = {
     oppervlakte: null, dakOppervlak: null, gemeente: null, capakey: null,
     perceelnummer: null, afdeling: null, aantalAdressen: null,
@@ -109,7 +109,7 @@ async function meting(adres: string): Promise<NextResponse> {
     const lat: number | null = loc.Location?.Lat_WGS84 ?? null
     const lng: number | null = loc.Location?.Lon_WGS84 ?? null
 
-    if (!straat || !huisnummer || !postcode) return NextResponse.json({ ...leeg, gemeente, lat, lng })
+    if (snel || !straat || !huisnummer || !postcode) return NextResponse.json({ ...leeg, gemeente, lat, lng })
 
     const luchtfotoUrl = x && y
       ? `${WMS_LUCHT}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image/png&LAYERS=Ortho&STYLES=&CRS=EPSG:31370&BBOX=${Math.round(x - 40)},${Math.round(y - 40)},${Math.round(x + 40)},${Math.round(y + 40)}&WIDTH=500&HEIGHT=500`
@@ -322,7 +322,7 @@ async function getAlleGebouwen(basisregCapakey: string): Promise<GebouwInfo[]> {
 
     // Alle gebouwdetails parallel ophalen
     const details = await Promise.all(
-      lijst.map(async (g: { detail?: string }): Promise<GebouwInfo | null> => {
+      lijst.map(async (g: { detail?: string; identificator?: { objectId?: string } }): Promise<GebouwInfo | null> => {
         if (!g.detail) return null
         try {
           const gebouw = await (await fetch(g.detail)).json()
@@ -340,7 +340,7 @@ async function getAlleGebouwen(basisregCapakey: string): Promise<GebouwInfo[]> {
 
           const dakOppervlak = berekenDakOppervlak(oppervlakte, hoogte3d?.nokhoogte ?? null)
 
-          return { oppervlakte, dakOppervlak, grenzen, hoogte3d }
+          return { id: g.identificator?.objectId ?? null, oppervlakte, dakOppervlak, grenzen, hoogte3d }
         } catch {
           return null
         }
@@ -405,34 +405,4 @@ async function getCapakey(x: number, y: number) {
   } catch {
     return null
   }
-}
-
-/** Parse Lambert72 coördinaten uit GML posList */
-function extractCoordsFromGml(gml: string): [number, number][] | null {
-  const match = gml.match(/<gml:posList[^>]*>([\s\S]+?)<\/gml:posList>/)
-  if (!match) return null
-
-  const nums = match[1].trim().split(/\s+/).map(Number)
-  const punten: [number, number][] = []
-  for (let i = 0; i + 1 < nums.length; i += 2) punten.push([nums[i], nums[i + 1]])
-  return punten.length > 2 ? punten : null
-}
-
-/** Lambert72 [x,y][] → WGS84 [lat,lng][] voor Leaflet */
-function lambert72ToWgs84(coords: [number, number][]): [number, number][] {
-  return coords.map(([x, y]) => {
-    const [lng, lat] = proj4('EPSG:31370', 'EPSG:4326', [x, y])
-    return [lat, lng] as [number, number]
-  })
-}
-
-function shoelace(punten: [number, number][]): number {
-  let som = 0
-  const n = punten.length
-  for (let i = 0; i < n; i++) {
-    const [x1, y1] = punten[i]
-    const [x2, y2] = punten[(i + 1) % n]
-    som += x1 * y2 - x2 * y1
-  }
-  return Math.abs(som / 2)
 }

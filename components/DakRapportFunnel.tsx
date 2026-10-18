@@ -6,7 +6,7 @@ import { Check, CircleCheck } from 'lucide-react'
 import { hoofdGebouw } from '@/lib/dak'
 import AdresZoeker from '@/components/AdresZoeker'
 import type { DakmetingResultaat } from '@/app/api/dakmeting/route'
-import type { PerceelSelectie } from './DakKaart'
+import type { KaartFase, PerceelSelectie } from './DakKaart'
 import {
   bouwjaarLabels,
   dakwerkenLabels,
@@ -106,15 +106,21 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
   const [besteTijd, setBesteTijd] = useState<'direct' | 'vandaag' | 'morgen'>('direct')
   const [telefoonFout, setTelefoonFout] = useState<string | null>(null)
 
+  // Enkel de gebouwen die meetellen (standaard het aangeduide gebouw)
+  const meetellend = perceelSelectie?.gebouwen?.filter((g) => g.meetellen !== false)
   const totaalDak =
-    perceelSelectie?.gebouwen?.reduce((s, g) => s + (g.dakOppervlak ?? g.oppervlakte ?? 0), 0)
+    (meetellend && meetellend.length > 0
+      ? meetellend.reduce((s, g) => s + (g.dakOppervlak ?? g.oppervlakte ?? 0), 0)
+      : null)
     ?? meting?.dakOppervlak
     ?? meting?.oppervlakte
     ?? null
 
-  const aantalGebouwen = perceelSelectie?.gebouwen?.length ?? (meting?.oppervlakte ? 1 : 0)
+  const aantalGebouwen = meetellend?.length ?? (meting?.oppervlakte ? 1 : 0)
+  const [kaartFase, setKaartFase] = useState<KaartFase>('zoeken')
+  const scanKlaar = kaartFase === 'klaar' && !!totaalDak
   const hoofd = hoofdGebouw(perceelSelectie?.gebouwen)
-  const nokhoogte = hoofd?.hoogte3d?.nokhoogte ?? meting?.hoogte3d?.nokhoogte ?? null
+  const nokhoogte = (hoofd?.scan?.meetbaar ? hoofd.scan.nokhoogte : null) ?? hoofd?.hoogte3d?.nokhoogte ?? meting?.hoogte3d?.nokhoogte ?? null
   const daktype = hoofd?.hoogte3d?.gebouwType ?? meting?.hoogte3d?.gebouwType ?? null
 
   async function selecteerAdres(adres: string) {
@@ -124,7 +130,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
     setMetingBezig(true)
     setStap('scan')
     try {
-      const res = await fetch(`/api/dakmeting?adres=${encodeURIComponent(adres)}`)
+      const res = await fetch(`/api/dakmeting?adres=${encodeURIComponent(adres)}&snel=1`)
       if (res.ok) setMeting(await res.json())
     } catch { /* stil falen */ }
     setMetingBezig(false)
@@ -196,6 +202,13 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
               nokhoogte,
               daktype,
               aantalGebouwen,
+              dakscan: hoofd?.scan?.meetbaar ? {
+                dakvorm: hoofd.scan.dakvorm,
+                helling: hoofd.scan.helling,
+                nokhoogte: hoofd.scan.nokhoogte,
+                vlakken: hoofd.scan.vlakken.map((v) => ({ richting: v.richting, helling: v.helling, dakOppervlak: v.dakOppervlak })),
+                bron: hoofd.scan.bron,
+              } : null,
               lat: meting?.lat ?? null,
               lng: meting?.lng ?? null,
             },
@@ -291,7 +304,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
               <button
                 type="button"
                 onClick={gaTerug}
-                className="text-gray-500 hover:text-green-700 transition-colors"
+                className="text-gray-500 hover:text-navy transition-colors"
                 aria-label="Vorige stap"
               >
                 ← Vorige
@@ -299,11 +312,11 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
             )}
             <span>{voortgangLabel}</span>
           </div>
-          {stap !== 'klaar' && <span className="text-green-700">{STAP_LABELS[stap]}</span>}
+          {stap !== 'klaar' && <span className="text-navy">{STAP_LABELS[stap]}</span>}
         </div>
         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div
-            className="h-full bg-green-700 transition-all duration-500 ease-out"
+            className="h-full bg-navy transition-all duration-500 ease-out"
             style={{ width: `${voortgang}%` }}
           />
         </div>
@@ -327,7 +340,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
             <ul className="text-xs text-gray-600 space-y-1 pt-2">
               {['Meteen zichtbaar op de kaart', 'Gegevens van de Vlaamse overheid', 'Gratis, zonder account'].map((t) => (
                 <li key={t} className="flex items-center gap-1.5">
-                  <Check className="h-3.5 w-3.5 flex-shrink-0 text-green-700" aria-hidden />
+                  <Check className="h-3.5 w-3.5 flex-shrink-0 text-navy" aria-hidden />
                   {t}
                 </li>
               ))}
@@ -335,17 +348,19 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
           </div>
         )}
 
-        {/* ─── Stap 2 — Scan + kaartselectie ─── */}
+        {/* ─── Stap 2 — Dakscan op de kaart ─── */}
         {stap === 'scan' && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">
-                {totaalDak ? 'Is dit uw woning?' : 'Klik op uw woning'}
+              <h2 className="text-xl font-bold text-navy mb-1">
+                {kaartFase === 'klaar' ? 'Is dit uw woning?' : kaartFase === 'leeg' ? 'Tik op uw woning' : 'We meten uw dak'}
               </h2>
-              <p className="text-sm text-gray-600">
-                {totaalDak
-                  ? 'Staat de verkeerde woning aangeduid? Klik dan op de kaart op het juiste dak.'
-                  : 'Klik op de kaart op het dak van uw woning.'}
+              <p className="text-sm text-slate-600">
+                {kaartFase === 'klaar'
+                  ? 'Staat de verkeerde woning aangeduid? Tik dan op de kaart op het juiste dak.'
+                  : kaartFase === 'leeg'
+                    ? 'Tik op de kaart op het dak van uw woning.'
+                    : 'Met de luchtfoto en de laserhoogtemeting van de Vlaamse overheid.'}
               </p>
             </div>
 
@@ -354,25 +369,12 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
                 key={`${meting.lat}-${meting.lng}`}
                 lat={meting.lat}
                 lng={meting.lng}
-                initieleSelectie={meting.oppervlakte || meting.perceelnummer ? {
-                  capakey: meting.capakey,
-                  perceelnummer: meting.perceelnummer,
-                  afdeling: meting.afdeling,
-                  aantalAdressen: meting.aantalAdressen,
-                  gemeente: meting.gemeente,
-                  perceelGrenzen: null,
-                  gebouwen: meting.oppervlakte ? [{
-                    oppervlakte: meting.oppervlakte,
-                    dakOppervlak: meting.dakOppervlak,
-                    grenzen: [],
-                    hoogte3d: meting.hoogte3d,
-                  }] : [],
-                } : null}
                 onPerceelSelect={onPerceelSelect}
+                onFase={setKaartFase}
               />
             ) : (
-              <div className="h-64 rounded-xl bg-gray-50 flex items-center justify-center text-sm text-gray-500">
-                {metingBezig ? 'Uw dak wordt opgezocht…' : 'Voor dit adres vonden we geen kaartgegevens. Probeer een ander adres.'}
+              <div className="flex h-64 items-center justify-center rounded-xl bg-slate-50 text-sm text-slate-600">
+                {metingBezig ? 'Uw adres wordt opgezocht…' : 'Voor dit adres vonden we geen kaartgegevens. Probeer een ander adres.'}
               </div>
             )}
 
@@ -385,10 +387,10 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
               </button>
               <button
                 onClick={naarPreview}
-                disabled={!totaalDak}
-                className="flex-1 rounded-lg bg-green-700 px-4 py-3 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={!scanKlaar}
+                className="flex-1 rounded-lg bg-amber px-4 py-3 text-sm font-bold text-navy hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed transition-[filter]"
               >
-                {totaalDak ? `Bekijk resultaat (±${totaalDak} m²) →` : 'Klik eerst op uw dak'}
+                {scanKlaar ? `Bekijk resultaat (±${totaalDak} m²) →` : kaartFase === 'leeg' ? 'Tik eerst op uw dak' : 'Uw dak wordt gemeten…'}
               </button>
             </div>
           </div>
@@ -398,15 +400,11 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
         {stap === 'preview' && (
           <div className="space-y-5">
             <div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-50 px-2.5 py-1 rounded-full mb-3">
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
-                Dakscan voltooid
-              </div>
               <h2 className="text-xl font-bold text-gray-900">Uw dak in cijfers</h2>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-green-700 text-white p-4">
+              <div className="rounded-xl bg-navy text-white p-4">
                 <p className="text-xs uppercase tracking-wider opacity-75 mb-1">Dakoppervlakte</p>
                 <p className="text-2xl font-bold">±{totaalDak} m²</p>
                 {aantalGebouwen > 1 && (
@@ -429,7 +427,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
 
             <button
               onClick={() => setStap('email')}
-              className="w-full rounded-lg bg-green-700 px-4 py-3.5 text-sm font-semibold text-white hover:bg-green-800 transition-colors"
+              className="w-full rounded-lg bg-amber px-4 py-3.5 text-sm font-bold text-navy hover:brightness-95 transition-[filter]"
             >
               Stuur mij het volledige rapport
             </button>
@@ -463,7 +461,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
                 autoComplete="email"
                 required
                 placeholder="naam@voorbeeld.be"
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-700/25"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-navy focus:ring-2 focus:ring-navy/25"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -472,12 +470,12 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
             <label className="flex items-start gap-2 text-sm text-gray-700">
               <input
                 type="checkbox"
-                className="mt-0.5 accent-green-600"
+                className="mt-0.5 accent-navy"
                 checked={gdpr}
                 onChange={(e) => setGdpr(e.target.checked)}
               />
               <span>
-                Ik ga akkoord met de <a href="/privacy" className="text-green-700 underline">privacyverklaring</a>.
+                Ik ga akkoord met de <a href="/privacy" className="text-navy underline">privacyverklaring</a>.
               </span>
             </label>
 
@@ -486,7 +484,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
             <button
               type="submit"
               disabled={bezig}
-              className="w-full rounded-lg bg-green-700 px-4 py-3.5 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-60 transition-colors"
+              className="w-full rounded-lg bg-amber px-4 py-3.5 text-sm font-bold text-navy hover:brightness-95 disabled:opacity-60 transition-[filter]"
             >
               {bezig ? 'Bezig…' : 'Stuur mijn rapport →'}
             </button>
@@ -498,7 +496,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
         {stap === 'vragenlijst' && (
           <div className="space-y-5">
             <div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-50 px-2.5 py-1 rounded-full mb-3">
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-navy bg-slate-100 px-2.5 py-1 rounded-full mb-3">
                 <Check className="h-3.5 w-3.5" aria-hidden />
                 Rapport verstuurd
               </div>
@@ -518,7 +516,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
                     onClick={() => setBouwjaar(val as FunnelStapVragenlijst['bouwjaar'])}
                     className={`text-sm py-2.5 px-3 rounded-lg border transition-colors ${
                       bouwjaar === val
-                        ? 'border-green-600 bg-green-50 text-green-700 font-semibold'
+                        ? 'border-amber bg-orange-50 text-navy font-semibold'
                         : 'border-gray-200 text-gray-700 hover:border-gray-300'
                     }`}
                   >
@@ -538,7 +536,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
                     onClick={() => setLaatsteWerken(val as FunnelStapVragenlijst['laatste_dakwerken'])}
                     className={`text-sm py-2.5 px-3 rounded-lg border transition-colors ${
                       laatsteWerken === val
-                        ? 'border-green-600 bg-green-50 text-green-700 font-semibold'
+                        ? 'border-amber bg-orange-50 text-navy font-semibold'
                         : 'border-gray-200 text-gray-700 hover:border-gray-300'
                     }`}
                   >
@@ -558,7 +556,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
                     onClick={() => setLekkage(val as FunnelStapVragenlijst['lekkage_recent'])}
                     className={`text-sm py-2.5 px-3 rounded-lg border transition-colors ${
                       lekkage === val
-                        ? 'border-green-600 bg-green-50 text-green-700 font-semibold'
+                        ? 'border-amber bg-orange-50 text-navy font-semibold'
                         : 'border-gray-200 text-gray-700 hover:border-gray-300'
                     }`}
                   >
@@ -581,11 +579,11 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
                       onClick={() => toggleTypeWerk(val)}
                       className={`text-sm py-2.5 px-3 rounded-lg border text-left transition-colors flex items-center gap-2 ${
                         checked
-                          ? 'border-green-600 bg-green-50 text-green-800 font-semibold'
+                          ? 'border-amber bg-orange-50 text-navy font-semibold'
                           : 'border-gray-200 text-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      <span className={`inline-block w-4 h-4 rounded border-2 flex-shrink-0 ${checked ? 'bg-green-700 border-green-600' : 'border-gray-300'}`}>
+                      <span className={`inline-block w-4 h-4 rounded border-2 flex-shrink-0 ${checked ? 'bg-navy border-navy' : 'border-gray-300'}`}>
                         {checked && (
                           <svg viewBox="0 0 20 20" fill="white" className="w-full h-full"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
                         )}
@@ -607,7 +605,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
               <button
                 onClick={submitVragenlijst}
                 disabled={bezig}
-                className="flex-1 rounded-lg bg-green-700 px-4 py-3 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-60 transition-colors"
+                className="flex-1 rounded-lg bg-amber px-4 py-3 text-sm font-bold text-navy hover:brightness-95 disabled:opacity-60 transition-[filter]"
               >
                 {bezig ? 'Bezig…' : 'Vul mijn rapport aan →'}
               </button>
@@ -628,7 +626,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
             <ul className="text-xs text-gray-600 space-y-1">
               {['Geen kosten', 'Geen verplichting', 'U kiest zelf wanneer u gebeld wordt'].map((t) => (
                 <li key={t} className="flex items-center gap-1.5">
-                  <Check className="h-3.5 w-3.5 flex-shrink-0 text-green-700" aria-hidden />
+                  <Check className="h-3.5 w-3.5 flex-shrink-0 text-navy" aria-hidden />
                   {t}
                 </li>
               ))}
@@ -642,7 +640,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
                 autoComplete="name"
                 required
                 placeholder="Jan Janssen"
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-700/25"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-navy focus:ring-2 focus:ring-navy/25"
                 value={naam}
                 onChange={(e) => setNaam(e.target.value)}
               />
@@ -656,7 +654,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
                 autoComplete="tel"
                 required
                 placeholder="0470 12 34 56"
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-700/25"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-navy focus:ring-2 focus:ring-navy/25"
                 value={telefoon}
                 onChange={(e) => setTelefoon(e.target.value)}
               />
@@ -672,7 +670,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
                     onClick={() => setBesteTijd(t)}
                     className={`text-sm py-2.5 px-3 rounded-lg border transition-colors ${
                       besteTijd === t
-                        ? 'border-green-600 bg-green-50 text-green-700 font-semibold'
+                        ? 'border-amber bg-orange-50 text-navy font-semibold'
                         : 'border-gray-200 text-gray-700 hover:border-gray-300'
                     }`}
                   >
@@ -687,7 +685,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
             <button
               type="submit"
               disabled={bezig}
-              className="w-full rounded-lg bg-green-700 px-4 py-3.5 text-sm font-semibold text-white hover:bg-green-800 disabled:opacity-60 transition-colors"
+              className="w-full rounded-lg bg-amber px-4 py-3.5 text-sm font-bold text-navy hover:brightness-95 disabled:opacity-60 transition-[filter]"
             >
               {bezig ? 'Bezig…' : 'Bel mij gratis terug'}
             </button>
@@ -702,7 +700,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
         {/* ─── Stap 7 — Klaar ─── */}
         {stap === 'klaar' && (
           <div className="text-center space-y-4 py-4">
-            <CircleCheck className="mx-auto h-12 w-12 text-green-600" aria-hidden />
+            <CircleCheck className="mx-auto h-12 w-12 text-navy" aria-hidden />
             <div>
               <h2 className="text-2xl font-bold text-gray-900">Bedankt, {naam}!</h2>
               <p className="text-sm text-gray-600 mt-2">
@@ -716,14 +714,14 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
               href={`/rapport/${sessionId}`}
               target="_blank"
               rel="noopener"
-              className="inline-flex items-center gap-2 rounded-lg bg-green-700 px-5 py-3 text-sm font-semibold text-white hover:bg-green-800 transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg bg-amber px-5 py-3 text-sm font-bold text-navy hover:brightness-95 transition-[filter]"
             >
               Bekijk uw dakrapport
             </a>
 
-            <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-left">
-              <p className="text-xs font-semibold uppercase tracking-wider text-green-800 mb-1">Rapport verstuurd</p>
-              <p className="text-sm text-green-900">
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-left">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Rapport verstuurd</p>
+              <p className="text-sm text-navy">
                 Uw dakrapport is verstuurd naar <strong>{email}</strong>. Niet ontvangen? Kijk ook bij uw ongewenste e-mail.
               </p>
             </div>
