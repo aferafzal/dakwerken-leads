@@ -14,6 +14,7 @@ import {
   type Vraag,
   type Werk,
 } from '@/lib/prijsmodel'
+import DakDoorsnede from '@/components/DakDoorsnede'
 
 export type Maten = DakMaten & { zonM2: number }
 
@@ -271,6 +272,12 @@ export function Vragenstroom({ maten, werken, antwoorden, onAntwoord, onVraag, o
     bovenRef.current?.scrollIntoView({ block: 'start' })
   }, [index])
 
+  // De doorsnede alvast laden, zodat ze er meteen staat bij de isolatievraag
+  const metDoorsnede = werken.includes('isolatie')
+  useEffect(() => {
+    if (metDoorsnede) new Image().src = '/doorsnede-dak.jpg'
+  }, [metDoorsnede])
+
   const vraag = vragen[Math.min(index, vragen.length - 1)]
   const prijs = berekenPrijs(maten, { ...antwoorden, werken })
   const laatste = index >= vragen.length - 1
@@ -344,6 +351,16 @@ export function Vragenstroom({ maten, werken, antwoorden, onAntwoord, onVraag, o
           {TEKST[vraag].waarom}
         </p>
       </div>
+
+      {vraag === 'isolatie' && metDoorsnede && (
+        <div>
+          <DakDoorsnede nadruk={['isolatie']} klein />
+          <p className="mt-3 text-sm text-slate-700">
+            <span className="font-semibold text-navy">Kijk op zolder tussen de kepers.</span> Ziet u alleen de onderkant van de pannen
+            of een folie? Dan is uw dak waarschijnlijk niet geïsoleerd. Is de zolder afgewerkt met platen, dan zit er vaak isolatie achter.
+          </p>
+        </div>
+      )}
 
       {/* Antwoorden */}
       {vraag === 'materiaal' && (

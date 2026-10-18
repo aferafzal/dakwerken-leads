@@ -6,6 +6,7 @@ import { BEDRIJF } from '@/lib/bedrijf'
 import DakscanBeeld from './DakscanBeeld'
 import DeelKnoppen from './DeelKnoppen'
 import RapportVerfijner from './RapportVerfijner'
+import DakDoorsnede, { type Laag } from '@/components/DakDoorsnede'
 
 const KORT: Record<Windrichting, string> = {
   noord: 'Noord', noordoost: 'Noordoost', oost: 'Oost', zuidoost: 'Zuidoost',
@@ -72,6 +73,24 @@ export default function Rapport({ data, sessionId, voorbeeld = false }: { data: 
   }
   const vlakRijen = [...perRichting.values()].sort((a, b) => b.dakOppervlak - a.dakOppervlak)
 
+  // Doorsnede: welke lagen bij de werken horen (alleen voor een hellend dak)
+  const metWerk = (w: string) => data.kosten.regels.some((r) => r.werk === w && r.max > 0)
+  const bewoond = data.antwoorden.zolder === 'bewoond'
+  const opbouw: { nadruk: Laag[]; tekst: string } | null =
+    metWerk('dakbedekking') && metWerk('isolatie') ? {
+      nadruk: ['pannen', 'panlatten', 'tengellatten', 'onderdak', 'isolatie'],
+      tekst: 'Bij een nieuwe dakbedekking met isolatie worden de lagen 1 tot 5 vernieuwd. De isolatie komt dan langs buiten: uw zolder blijft vrij.',
+    }
+    : metWerk('dakbedekking') ? {
+      nadruk: ['pannen', 'panlatten', 'tengellatten', 'onderdak'],
+      tekst: 'Bij een nieuwe dakbedekking worden de pannen, de latten en het onderdak vernieuwd (1 tot 4). De kepers blijven, tenzij ze beschadigd zijn.',
+    }
+    : metWerk('isolatie') ? {
+      nadruk: ['isolatie', 'dampscherm', ...(bewoond ? (['afwerking'] as Laag[]) : [])],
+      tekst: `Langs binnen isoleren: isolatie tussen de kepers (5) en een dampscherm (7)${bewoond ? ', met een nieuwe afwerking (8)' : ''}. De pannen blijven liggen.`,
+    }
+    : null
+
   const printCss = `
     @page {
       size: A4;
@@ -107,6 +126,9 @@ export default function Rapport({ data, sessionId, voorbeeld = false }: { data: 
       .rapport-inhoud section > div.mt-5 { margin-top: 3.5mm; }
       .blok { break-inside: avoid; }
       .print-nieuwe-pagina { break-before: page; }
+      .doorsnede { grid-template-columns: 52mm 1fr !important; gap: 6mm !important; }
+      .doorsnede ol { grid-template-columns: 1fr 1fr !important; row-gap: 1.5mm !important; font-size: 8.5pt; }
+      .doorsnede .laag-badge { width: 4.5mm; height: 4.5mm; font-size: 6.5pt; }
     }
   `
 
@@ -304,6 +326,16 @@ export default function Rapport({ data, sessionId, voorbeeld = false }: { data: 
               Indicatieve prijzen, {data.kosten.btwInbegrepen ? 'inclusief' : 'exclusief'} btw. Een gecertificeerde dakwerker maakt na een plaatsbezoek een definitieve offerte.
               {data.kosten.btwInbegrepen ? '' : ' Voor de renovatie van een woning ouder dan tien jaar geldt meestal 6% btw in plaats van 21%.'}
             </p>
+          </Sectie>
+        )}
+
+        {/* Wat er aan het dak gebeurt */}
+        {opbouw && (
+          <Sectie titel="Wat er aan uw dak gebeurt" inleiding={opbouw.tekst}>
+            <DakDoorsnede
+              nadruk={opbouw.nadruk}
+              onderschrift="Illustratie van een gangbaar hellend dak met pannen. In het oranje: wat bij uw werken hoort. De opbouw van uw dak kan verschillen."
+            />
           </Sectie>
         )}
 
