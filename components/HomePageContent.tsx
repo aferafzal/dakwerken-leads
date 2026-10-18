@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { motion, useReducedMotion } from 'motion/react'
 import LeadFormModal from '@/components/LeadFormModal'
 import VoorbeeldResultaat from '@/components/VoorbeeldResultaat'
-import { steden } from '@/lib/steden'
 
 // ─────────────────────────────────────────────────────────────
 // KLEUREN (zelfde merk als voorheen)
@@ -320,27 +319,14 @@ export default function HomePageContent() {
       </section>
 
       {/* ════════════════════════════════════════════════════
-          WERKGEBIED — links naar de stadspagina's
+          WERKGEBIED — één zin (de aparte stadspagina's zijn weg)
       ════════════════════════════════════════════════════ */}
-      <section id="werkgebied" className="px-4 py-20 sm:px-6 lg:px-8" style={{ background: 'hsl(40 33% 98%)' }}>
+      <section id="werkgebied" className="px-4 py-16 sm:px-6 lg:px-8" style={{ background: 'hsl(40 33% 98%)' }}>
         <div className="mx-auto max-w-6xl">
           <h2 className="text-3xl font-black sm:text-4xl" style={{ color: NAVY }}>Werkgebied</h2>
-          <p className="mt-3 max-w-xl text-base leading-relaxed sm:text-lg" style={{ color: TEKST_GEDEMPT }}>
-            Actief in heel Oost-Vlaanderen. Kies uw gemeente voor meer uitleg en een gratis offerte.
+          <p className="mt-3 max-w-2xl text-base leading-relaxed sm:text-lg" style={{ color: TEKST_GEDEMPT }}>
+            Actief in heel Oost-Vlaanderen, van Gent en het Meetjesland tot de Denderstreek en de Vlaamse Ardennen.
           </p>
-          <ul className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {steden.map((s) => (
-              <li key={s.slug}>
-                <Link
-                  href={`/dakwerken-${s.slug}`}
-                  className="flex min-h-12 items-center rounded-xl border bg-white px-4 py-3 text-sm font-semibold transition-colors hover:border-[hsl(222_47%_11%)]"
-                  style={{ borderColor: 'hsl(220 13% 85%)', color: NAVY }}
-                >
-                  {s.naam}
-                </Link>
-              </li>
-            ))}
-          </ul>
         </div>
       </section>
 
