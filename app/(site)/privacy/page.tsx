@@ -52,13 +52,13 @@ export default function PrivacyPage() {
         <Blok titel="Welke gegevens verzamelen we?">
           <ul className="list-disc space-y-2 pl-5 marker:text-gray-400">
             <li>
-              Het adres van uw woning en wat we daaruit over uw dak berekenen: perceel,
-              oppervlakte, hoogte en een 3D-model.
+              Het adres van uw woning en wat we daaruit over uw dak berekenen: de gebouwen op het
+              perceel, de dakvlakken met hun oppervlakte en helling, en of de woning erfgoed is.
             </li>
             <li>Uw e-mailadres, om u het rapport te sturen.</li>
             <li>
-              Uw antwoorden op de extra vragen, als u die invult: bouwjaar, laatste dakwerken,
-              lekkage en de werken die u overweegt.
+              Uw antwoorden op de vragen over uw dak, als u die invult: onder meer het dakmateriaal,
+              het bouwjaar, de isolatie, de werken die u overweegt en wanneer u wilt starten.
             </li>
             <li>
               Als u gebeld wilt worden of een offerte aanvraagt: uw naam, telefoonnummer,
@@ -95,7 +95,7 @@ export default function PrivacyPage() {
           <p>
             <strong className="font-semibold text-gray-900">Dienstverleners die de site laten werken.</strong>{' '}
             Zij verwerken gegevens alleen in onze opdracht: Vercel (hosting en opslag), Supabase
-            (database), Resend (verzending van e-mails) en Modal (berekening van het 3D-model).
+            (database) en Resend (verzending van e-mails).
           </p>
           <p>
             <strong className="font-semibold text-gray-900">Openbare kaartdiensten.</strong>{' '}
