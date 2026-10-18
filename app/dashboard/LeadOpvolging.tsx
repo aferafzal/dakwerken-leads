@@ -7,7 +7,7 @@ import { bewaarOpvolging, type OpvolgResultaat } from './acties'
 
 /**
  * Opvolgstatus (bewaart meteen bij het kiezen) en een notitie per aanvraag.
- * actief = false zolang migratie 005 niet uitgevoerd is: dan alleen tonen, niets bewaren.
+ * actief = false zolang migratie 009 niet uitgevoerd is: dan alleen tonen, niets bewaren.
  */
 export default function LeadOpvolging({ id, opvolging, notitie, actief }: {
   id: string

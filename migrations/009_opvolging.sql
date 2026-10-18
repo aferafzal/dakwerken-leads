@@ -1,5 +1,5 @@
 -- ────────────────────────────────────────────────────────────────
--- Migration 005 — Opvolging van aanvragen in het dashboard
+-- Migration 009 — Opvolging van aanvragen in het dashboard
 -- Run dit in Supabase SQL Editor (https://supabase.com → uw project → SQL)
 -- ────────────────────────────────────────────────────────────────
 

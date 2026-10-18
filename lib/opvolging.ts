@@ -1,5 +1,5 @@
 // Opvolging van een aanvraag: wat wij ermee deden (los van status = wat de bezoeker deed).
-// Kolom leads.opvolging, zie migrations/005_opvolging.sql.
+// Kolom leads.opvolging, zie migrations/009_opvolging.sql.
 
 export const OPVOLGING = [
   { waarde: 'nieuw', label: 'Nieuw' },

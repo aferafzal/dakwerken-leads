@@ -220,7 +220,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
         {!fout && !opvolgingKlaar && (
           <div className="mt-6 rounded-lg bg-amber-50 p-4 text-sm text-amber-900">
-            De opvolging en notities kunnen nog niet bewaard worden. Voer <code className="font-mono text-[13px]">migrations/005_opvolging.sql</code> uit
+            De opvolging en notities kunnen nog niet bewaard worden. Voer <code className="font-mono text-[13px]">migrations/009_opvolging.sql</code> uit
             in de Supabase SQL-editor en herlaad deze pagina.
           </div>
         )}
