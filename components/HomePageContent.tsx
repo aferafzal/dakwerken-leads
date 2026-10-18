@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { motion, useReducedMotion } from 'motion/react'
 import LeadFormModal from '@/components/LeadFormModal'
 import AdresZoeker from '@/components/AdresZoeker'
 
@@ -13,7 +12,6 @@ const NAVY = 'hsl(222 47% 11%)'
 const AMBER = 'hsl(25 95% 53%)'
 const TEKST_GEDEMPT = 'hsl(215 19% 35%)'
 const WARM_WIT = 'hsl(40 33% 98%)'
-const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
 const STAPPEN = [
   { nr: '01', t: 'Adres invullen',     d: 'U ziet meteen de luchtfoto van uw woning.' },
@@ -59,20 +57,50 @@ export default function HomePageContent() {
   const [formOpen,     setFormOpen]     = useState(false)
   const [startVerzoek, setStartVerzoek] = useState<{ adres: string; id: number } | null>(null)
   const [heroPauze,    setHeroPauze]    = useState(false)
-  const reduce    = useReducedMotion()
+  const [reduce,       setReduce]       = useState(false)
   const heroVideo = useRef<HTMLVideoElement>(null)
+  const heroHandmatigGepauzeerd = useRef(false)
   const demoVideo = useRef<HTMLVideoElement>(null)
   const [demoSpeelt, setDemoSpeelt] = useState(false)
+  const [demoDichtbij, setDemoDichtbij] = useState(false)
   // Pauzeert de bezoeker de demo zelf, dan start ze niet vanzelf opnieuw
   const demoHandmatigGepauzeerd = useRef(false)
 
-  // Wie minder beweging wil, krijgt een stilstaande hero
+  // Dronebeeld pas laden als de rest van de pagina er staat: de poster toont al het dak,
+  // en kop en adresveld krijgen voorrang. Wie minder beweging wil, houdt de poster.
   useEffect(() => {
-    if (reduce) {
-      heroVideo.current?.pause()
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setReduce(true)
       setHeroPauze(true)
+      return
     }
-  }, [reduce])
+    const start = () => {
+      if (heroHandmatigGepauzeerd.current) return
+      void heroVideo.current?.play().catch(() => setHeroPauze(true))
+    }
+    if (document.readyState === 'complete') {
+      start()
+      return
+    }
+    window.addEventListener('load', start, { once: true })
+    return () => window.removeEventListener('load', start)
+  }, [])
+
+  // Demoposter pas ophalen als de bezoeker in de buurt scrolt
+  useEffect(() => {
+    const v = demoVideo.current
+    if (!v) return
+    const waarnemer = new IntersectionObserver(
+      ([item]) => {
+        if (!item.isIntersecting) return
+        setDemoDichtbij(true)
+        waarnemer.disconnect()
+      },
+      { rootMargin: '600px 0px' },
+    )
+    waarnemer.observe(v)
+    return () => waarnemer.disconnect()
+  }, [])
 
   // Demovideo speelt (zonder geluid) alleen als ze in beeld is
   useEffect(() => {
@@ -101,15 +129,18 @@ export default function HomePageContent() {
     }
   }
 
+  // Volgt wat de bezoeker wil, ook als de video nog niet gestart is
   function toggleHeroVideo() {
     const v = heroVideo.current
     if (!v) return
-    if (v.paused) {
-      void v.play()
+    if (heroPauze) {
+      heroHandmatigGepauzeerd.current = false
       setHeroPauze(false)
+      void v.play().catch(() => setHeroPauze(true))
     } else {
-      v.pause()
+      heroHandmatigGepauzeerd.current = true
       setHeroPauze(true)
+      v.pause()
     }
   }
 
@@ -119,10 +150,6 @@ export default function HomePageContent() {
     setFormOpen(true)
   }
 
-  const opschuiven = (y: number, duur: number) => ({
-    hidden:  { opacity: 0, y: reduce ? 0 : y },
-    visible: { opacity: 1, y: 0, transition: { duration: reduce ? 0 : duur, ease: EASE } },
-  })
 
   return (
     <>
@@ -137,11 +164,11 @@ export default function HomePageContent() {
         <div className="absolute inset-0 overflow-hidden">
           <video
             ref={heroVideo}
-            autoPlay={!reduce}
             loop
             muted
             playsInline
-            preload="auto"
+            preload="none"
+            poster="/hero-poster.jpg"
             aria-hidden="true"
             className="h-full w-full object-cover"
           >
@@ -150,28 +177,27 @@ export default function HomePageContent() {
           <div className="absolute inset-0 bg-black/65" />
         </div>
 
-        <motion.div
-          className="relative z-10 mx-auto w-full max-w-3xl px-6 pt-28 pb-28 text-center"
-          initial="hidden"
-          animate="visible"
-          variants={{ visible: { transition: { staggerChildren: reduce ? 0 : 0.15 } } }}
-        >
-          <motion.h1
-            className="text-4xl font-black leading-[1.05] tracking-tight text-white text-balance sm:text-6xl lg:text-7xl"
-            variants={opschuiven(32, 1.0)}
+        {/* Binnenschuiven met CSS (globals.css): de kop staat er meteen, zonder op JavaScript te wachten */}
+        <div className="relative z-10 mx-auto w-full max-w-3xl px-6 pt-28 pb-28 text-center">
+          <h1
+            className="hero-in text-4xl font-black leading-[1.05] tracking-tight text-white text-balance sm:text-6xl lg:text-7xl"
+            style={{ '--hero-y': '32px', '--hero-duur': '1s' } as React.CSSProperties}
           >
             Weet wat uw dak kost, vóór u een dakwerker belt.
-          </motion.h1>
+          </h1>
 
-          <motion.p
-            className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-white/85 sm:text-lg"
-            variants={opschuiven(24, 0.9)}
+          <p
+            className="hero-in mx-auto mt-6 max-w-xl text-base leading-relaxed text-white/85 sm:text-lg"
+            style={{ '--hero-y': '24px', '--hero-duur': '0.9s', '--hero-vertraging': '0.15s' } as React.CSSProperties}
           >
             Vul uw adres in en ontvang een gratis rapport: de oppervlakte van uw dak, een prijsindicatie
             per soort werk en mogelijke premies.
-          </motion.p>
+          </p>
 
-          <motion.div className="mx-auto mt-9 max-w-xl" variants={opschuiven(20, 0.8)}>
+          <div
+            className="hero-in mx-auto mt-9 max-w-xl"
+            style={{ '--hero-y': '20px', '--hero-duur': '0.8s', '--hero-vertraging': '0.3s' } as React.CSSProperties}
+          >
             <AdresZoeker
               label="Adres van uw woning"
               verborgenLabel
@@ -182,8 +208,8 @@ export default function HomePageContent() {
             <p className="mt-4 text-sm text-white/75">
               Gratis · Zonder account · Op basis van officiële Vlaamse gegevens
             </p>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
 
         {/* Pauzeknop voor de achtergrondvideo */}
         <button
@@ -231,7 +257,7 @@ export default function HomePageContent() {
               ref={demoVideo}
               className="aspect-video w-full rounded-2xl shadow-xl"
               style={{ background: NAVY }}
-              poster="/demo-poster.jpg"
+              poster={demoDichtbij ? '/demo-poster.jpg' : undefined}
               muted
               loop
               playsInline

@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 /* ── Kleurensysteem (geporteerd van Lovable) ─────────────────── */
@@ -54,6 +53,17 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ── Hero: tekst schuift binnen zonder op JavaScript te wachten ── */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes hero-in {
+    from { opacity: 0; transform: translateY(var(--hero-y, 24px)); }
+    to   { opacity: 1; transform: none; }
+  }
+  .hero-in {
+    animation: hero-in var(--hero-duur, 0.9s) cubic-bezier(0.16, 1, 0.3, 1) var(--hero-vertraging, 0s) both;
   }
 }
 

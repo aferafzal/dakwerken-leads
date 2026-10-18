@@ -1,7 +1,19 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import DakRapportFunnel from '@/components/DakRapportFunnel'
+import { useEffect, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
+
+// De funnel (met de formuliercontrole) hoort niet bij de eerste lading van de homepage.
+// Hij wordt na het laden van de pagina op de achtergrond opgehaald, of bij de eerste opening.
+const laadFunnel = () => import('@/components/DakRapportFunnel')
+const DakRapportFunnel = dynamic(laadFunnel, {
+  ssr: false,
+  loading: () => (
+    <div role="status" className="flex min-h-[320px] w-full items-center justify-center rounded-2xl bg-white shadow-2xl">
+      <span className="text-sm font-semibold text-gray-600">Even laden…</span>
+    </div>
+  ),
+})
 
 interface Props {
   open: boolean
@@ -13,12 +25,27 @@ interface Props {
 const FOCUSBAAR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])'
 
-// De funnel blijft gemount terwijl de modal dicht is, zodat sluiten
-// (Escape, achtergrond, kruisje) de voortgang niet meer wist.
+// Na de eerste opening blijft de funnel gemount terwijl de modal dicht is,
+// zodat sluiten (Escape, achtergrond, kruisje) de voortgang niet meer wist.
 export default function LeadFormModal({ open, onClose, startVerzoek = null }: Props) {
   const panelRef = useRef<HTMLDivElement>(null)
   const sluitRef = useRef(onClose)
   sluitRef.current = onClose
+  const [ooitOpen, setOoitOpen] = useState(open)
+  if (open && !ooitOpen) setOoitOpen(true)
+
+  useEffect(() => {
+    const vooraf = () => {
+      if ('requestIdleCallback' in window) window.requestIdleCallback(() => void laadFunnel(), { timeout: 3000 })
+      else setTimeout(() => void laadFunnel(), 1000) // Safari kent requestIdleCallback niet
+    }
+    if (document.readyState === 'complete') {
+      vooraf()
+      return
+    }
+    window.addEventListener('load', vooraf, { once: true })
+    return () => window.removeEventListener('load', vooraf)
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -91,7 +118,7 @@ export default function LeadFormModal({ open, onClose, startVerzoek = null }: Pr
           </svg>
         </button>
 
-        <DakRapportFunnel zichtbaar={open} startVerzoek={startVerzoek} />
+        {ooitOpen && <DakRapportFunnel zichtbaar={open} startVerzoek={startVerzoek} />}
       </div>
     </div>
   )
