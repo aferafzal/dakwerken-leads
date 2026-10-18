@@ -287,7 +287,8 @@ export function inzichten(maten: DakMaten & { zonM2?: number }, a: Antwoorden, p
   if (a.bouwjaar === 'voor_1980' || a.bouwjaar === '1980_2000') {
     uit.push({ titel: 'Mogelijk recht op Mijn VerbouwPremie', tekst: 'Uw woning is van vóór 2006: dakisolatie kan in aanmerking komen. Het bedrag hangt af van uw inkomen.' })
   }
-  const kans = asbestKans(a)
+  // Enkel als de bezoeker zelf kunstleien of golfplaten aanduidde (bij "onbekend" rekenen we het wel mee, maar zeggen we niets)
+  const kans = a.materiaal && ASBEST_MATERIAAL.includes(a.materiaal) ? asbestKans(a) : 0
   if (kans) {
     uit.push({ titel: 'Asbest: meegerekend', tekst: kans === 'waarschijnlijk'
       ? 'Kunstleien en golfplaten van vóór 2001 bevatten vaak asbest. Het veilig verwijderen zit nu in de prijs.'

@@ -5,6 +5,7 @@ import type { Windrichting } from '@/lib/dakscan'
 import { BEDRIJF } from '@/lib/bedrijf'
 import DakscanBeeld from './DakscanBeeld'
 import DeelKnoppen from './DeelKnoppen'
+import RapportVerfijner from './RapportVerfijner'
 
 const KORT: Record<Windrichting, string> = {
   noord: 'Noord', noordoost: 'Noordoost', oost: 'Oost', zuidoost: 'Zuidoost',
@@ -45,7 +46,7 @@ function SectieKop({ titel, inleiding }: { titel: string; inleiding?: string }) 
   )
 }
 
-export default function Rapport({ data, voorbeeld = false }: { data: RapportData; voorbeeld?: boolean }) {
+export default function Rapport({ data, sessionId, voorbeeld = false }: { data: RapportData; sessionId: string | null; voorbeeld?: boolean }) {
   const hoofdPrijs = data.kosten.regels.find((r) => r.max > 0)
   const samenvatting = [
     data.dakvorm,
@@ -290,6 +291,14 @@ export default function Rapport({ data, voorbeeld = false }: { data: RapportData
                 ))}
               </ul>
             )}
+
+            <RapportVerfijner
+              sessionId={sessionId}
+              maten={data.maten}
+              antwoorden={data.antwoorden}
+              verfijnd={data.verfijnd}
+              nauwkeurigheid={data.kosten.nauwkeurigheid}
+            />
 
             <p className="mt-3 max-w-prose text-xs leading-relaxed text-slate-600">
               Indicatieve prijzen, {data.kosten.btwInbegrepen ? 'inclusief' : 'exclusief'} btw. Een gecertificeerde dakwerker maakt na een plaatsbezoek een definitieve offerte.

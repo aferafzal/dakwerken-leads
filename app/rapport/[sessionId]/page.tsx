@@ -43,5 +43,5 @@ export default async function RapportPage(
 
   if (!lead) notFound()
 
-  return <Rapport data={await maakRapport(lead)} />
+  return <Rapport data={await maakRapport(lead)} sessionId={sessionId} />
 }

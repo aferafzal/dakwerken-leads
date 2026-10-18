@@ -25,6 +25,8 @@ const FUNNEL_STAPPEN: { stap: string; label: string }[] = [
   { stap: 'email',              label: 'Bij de e-mailstap' },
   { stap: 'telefoon',           label: 'Rapport aangevraagd' },
   { stap: 'klaar',              label: 'Belafspraak gevraagd' },
+  { stap: 'rapport_verfijnen',  label: 'In het rapport: verfijnen geopend' },
+  { stap: 'rapport_verfijnd',   label: 'In het rapport: prijs verfijnd' },
 ]
 
 const statusKleuren: Record<string, string> = {

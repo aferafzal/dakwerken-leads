@@ -9,7 +9,7 @@ import { naarLambert, naarWgs84 } from '@/lib/lambert'
 import type { Erfgoed } from '@/lib/erfgoed'
 import { ERFGOED_TEKST } from '@/lib/erfgoed-tekst'
 import { DRIE_D_AAN } from '@/lib/instellingen'
-import { berekenPrijs, inzichten, type Antwoorden, type Inzicht, type Prijsresultaat, type Werk } from '@/lib/prijsmodel'
+import { berekenPrijs, inzichten, type Antwoorden, type DakMaten, type Inzicht, type Prijsresultaat, type Werk } from '@/lib/prijsmodel'
 import { dakMaten } from '@/lib/dak'
 import { dakwerkenLabels, type FunnelStapVragenlijst } from '@/lib/validations'
 
@@ -72,6 +72,8 @@ export type RapportData = {
   kosten: Prijsresultaat
   verfijnd: boolean
   inzichten: Inzicht[]
+  maten: DakMaten & { zonM2: number }   // voor het verfijnen in het rapport
+  antwoorden: Antwoorden
   aandachtspunten: Aandachtspunt[]
   jaren: { jaar: string; url: string }[]
   streetView: string | null
@@ -224,7 +226,7 @@ export async function maakRapport(lead: LeadRow): Promise<RapportData> {
     ? dakMaten(metScan.map((g) => ({ dakOppervlak: g.dakOppervlak, dakvorm: g.dakvorm, scan: g.scan })))
     : (() => {
         const isPlat = (dak.daktype ?? '').toLowerCase().includes('plat')
-        return { hellend: isPlat ? 0 : totaalDak ?? 0, plat: isPlat ? totaalDak ?? 0 : 0, nokhoogte: dak.nokhoogte ?? null, gootlengte: null, zonM2: 0 }
+        return { hellend: isPlat ? 0 : totaalDak ?? 0, plat: isPlat ? totaalDak ?? 0 : 0, nokhoogte: dak.nokhoogte ?? null, gootlengte: null as number | null, zonM2: 0 }
       })()
   const VAN_TYPE: Record<string, Werk[]> = {
     pannen: ['dakbedekking'], isolatie: ['isolatie'], plat_dak: ['plat_dak'], dakgoten: ['goten'],
@@ -250,11 +252,13 @@ export async function maakRapport(lead: LeadRow): Promise<RapportData> {
       link: e.url ?? undefined,
     })
   }
-  if (lead.bouwjaar === 'voor_1980' || lead.bouwjaar === '1980_2000') {
+  // Bouwjaar: zoals de bezoeker het opgaf (ook later in het rapport), anders uit de lead
+  const bouwjaar = antwoorden.bouwjaar ?? lead.bouwjaar
+  if (bouwjaar === 'voor_1980' || bouwjaar === '1980_2000') {
     aandachtspunten.push({
       soort: 'asbest',
       titel: 'Mogelijk asbest',
-      tekst: `Uw woning is gebouwd ${lead.bouwjaar === 'voor_1980' ? 'vóór 1980' : 'tussen 1980 en 2000'}. Gebouwen van vóór 2001 kunnen asbest bevatten, bijvoorbeeld in leien of golfplaten. Laat dit nakijken vóór er aan het dak gewerkt wordt. Bij verkoop is een asbestattest verplicht.`,
+      tekst: `Uw woning is gebouwd ${bouwjaar === 'voor_1980' ? 'vóór 1980' : 'tussen 1980 en 2000'}. Gebouwen van vóór 2001 kunnen asbest bevatten, bijvoorbeeld in leien of golfplaten. Laat dit nakijken vóór er aan het dak gewerkt wordt. Bij verkoop is een asbestattest verplicht.`,
       link: 'https://ovam.vlaanderen.be/asbestattest',
     })
   }
@@ -309,6 +313,8 @@ export async function maakRapport(lead: LeadRow): Promise<RapportData> {
     gemeten: metScan.some((g) => g.scan) || !!ds,
     verfijnd: !!dak.verfijnd,
     inzichten: inzichten(maten, antwoorden, kosten),
+    maten,
+    antwoorden,
     metingTekst: metScan.some((g) => g.scan) || ds
       ? 'Gemeten met de laserhoogtemeting van de Vlaamse overheid (2013–2015). Sindsdien verbouwd? Dan kan het afwijken; een dakwerker meet ter plaatse na.'
       : opgeslagen.length
