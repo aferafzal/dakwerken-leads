@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { MessageCircle, X } from 'lucide-react'
 import ChatWidget from '@/components/ChatWidget'
 
@@ -43,6 +44,10 @@ export default function ContactKnop({ whatsapp }: Props) {
     }
     setMenuOpen((o) => !o)
   }
+
+  // Niet in het beheerdashboard: daar zou de knop over de aanvragen vallen
+  const pad = usePathname()
+  if (pad?.startsWith('/dashboard')) return null
 
   return (
     <div ref={wrapRef} className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">

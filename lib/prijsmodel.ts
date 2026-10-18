@@ -9,6 +9,16 @@
  */
 
 export type Werk = 'dakbedekking' | 'isolatie' | 'plat_dak' | 'goten' | 'lekkage' | 'advies'
+
+export const WERK_LABEL: Record<Werk, string> = {
+  dakbedekking: 'Dakbedekking vernieuwen',
+  isolatie: 'Dak isoleren',
+  plat_dak: 'Plat dak vernieuwen',
+  goten: 'Dakgoten',
+  lekkage: 'Lekkage',
+  advies: 'Advies',
+}
+
 export type Materiaal = 'betonpannen' | 'keramische_pannen' | 'natuurleien' | 'kunstleien' | 'golfplaten' | 'epdm' | 'roofing' | 'zink' | 'weet_niet'
 export type Bouwjaar = 'voor_1980' | '1980_2000' | '2000_2015' | 'na_2015' | 'onbekend'
 export type Isolatie = 'geen' | 'beetje' | 'goed' | 'weet_niet'

@@ -220,6 +220,8 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
               antwoorden: { ...antwoorden, werken },
               verfijnd,
               prijs: { min: prijs.min, max: prijs.max, nauwkeurigheid: prijs.nauwkeurigheid, regels: prijs.regels.map((r) => ({ werk: r.werk, naam: r.naam, min: r.min, max: r.max })) },
+              // Zodat het dashboard de prijs kan herberekenen als de antwoorden later in het rapport wijzigen
+              maten,
               capakey: perceelSelectie?.capakey ?? meting?.capakey,
               perceelnummer: perceelSelectie?.perceelnummer ?? meting?.perceelnummer,
               oppervlakte: totaalDak,

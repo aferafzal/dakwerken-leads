@@ -13,6 +13,7 @@ import {
   type Prijsresultaat,
   type Vraag,
   type Werk,
+  WERK_LABEL,
 } from '@/lib/prijsmodel'
 import DakDoorsnede from '@/components/DakDoorsnede'
 
@@ -117,15 +118,6 @@ export function PrijsKaart({ prijs, titel, metRegels = false, winst = 0, compact
 }
 
 // ─── Welke werken? ─────────────────────────────────────────────────
-
-export const WERK_LABEL: Record<Werk, string> = {
-  dakbedekking: 'Dakbedekking vernieuwen',
-  isolatie: 'Dak isoleren',
-  plat_dak: 'Plat dak vernieuwen',
-  goten: 'Dakgoten',
-  lekkage: 'Lekkage',
-  advies: 'Advies',
-}
 
 export function WerkKeuze({ gekozen, beschikbaar, onChange }: { gekozen: Werk[]; beschikbaar: Werk[]; onChange: (w: Werk[]) => void }) {
   return (
