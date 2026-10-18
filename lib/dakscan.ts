@@ -44,6 +44,7 @@ export type Dakscan = {
   dakvorm: string | null
   helling: number | null       // hoofdhelling in graden (null bij plat dak)
   nokhoogte: number | null     // m boven maaiveld
+  gootlengte: number | null    // m dakgoot (randen waar een hellend vlak naartoe afloopt); null bij plat dak
   vlakken: Dakvlak[]
   raster: {
     noord: number; zuid: number; west: number; oost: number  // WGS84-grenzen van het beeld
@@ -145,6 +146,32 @@ function zonScore(richting: number | null): number {
   return (1 + Math.cos(((richting - 180) * Math.PI) / 180)) / 2
 }
 
+/**
+ * Dakgoot: de randen van het grondvlak waar een groot hellend vlak naartoe afloopt.
+ * Bij een rijwoning tellen de gemene muren dus niet mee.
+ */
+function gootlengte(ring: [number, number][], vlakken: Dakvlak[]): number | null {
+  const richtingen = vlakken
+    .filter((v) => v.richting !== null && v.grondOppervlak >= 8)
+    .map((v) => WINDRICHTINGEN.indexOf(v.richting!) * 45)
+  if (richtingen.length === 0) return null
+  let opp = 0
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) opp += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1]
+  const tegenKlok = opp > 0
+  let lengte = 0
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const dx = ring[i][0] - ring[j][0]
+    const dy = ring[i][1] - ring[j][1]
+    const l = Math.hypot(dx, dy)
+    if (l < 0.5) continue
+    // Normaal naar buiten, als windrichting (0 = noord, met de klok mee)
+    const [nx, ny] = tegenKlok ? [dy, -dx] : [-dy, dx]
+    const normaal = ((Math.atan2(nx, ny) * 180) / Math.PI + 360) % 360
+    if (richtingen.some((r) => hoekVerschil(r, normaal) <= 30)) lengte += l
+  }
+  return lengte > 0 ? Math.round(lengte) : null
+}
+
 // ─── Scan ───────────────────────────────────────────────────────────
 
 export async function scanGebouw(gebouwId: string): Promise<Dakscan | null> {
@@ -162,7 +189,7 @@ async function meetDak(gebouwId: string, ring: [number, number][]): Promise<Omit
   const grondOppervlak = Math.round(shoelace(ring))
 
   const leeg: Omit<Dakscan, 'erfgoed'> = {
-    gebouwId, meetbaar: false, grondOppervlak, dakOppervlak: null, dakvorm: null,
+    gebouwId, meetbaar: false, grondOppervlak, dakOppervlak: null, dakvorm: null, gootlengte: null,
     helling: null, nokhoogte: null, vlakken: [], raster: null, bron: DAKSCAN_BRON,
   }
 
@@ -450,6 +477,7 @@ async function meetDak(gebouwId: string, ring: [number, number][]): Promise<Omit
     dakvorm,
     helling: hoofdHelling,
     nokhoogte,
+    gootlengte: gootlengte(ring, vlakken),
     vlakken,
     raster: {
       noord: Math.max(...hoeken.map(([lat]) => lat)),
