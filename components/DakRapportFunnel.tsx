@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Check, CircleCheck } from 'lucide-react'
 import { hoofdGebouw } from '@/lib/dak'
+import AdresZoeker from '@/components/AdresZoeker'
 import type { DakmetingResultaat } from '@/app/api/dakmeting/route'
 import type { PerceelSelectie } from './DakKaart'
 import {
@@ -54,9 +55,11 @@ function genSessionId(): string {
 interface Props {
   // false zolang de modal dicht is: dan tellen we nog geen stappen
   zichtbaar?: boolean
+  // Adres dat al op de homepage gekozen werd: de funnel start dan meteen bij de kaart
+  startVerzoek?: { adres: string; id: number } | null
 }
 
-export default function DakRapportFunnel({ zichtbaar = true }: Props) {
+export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null }: Props) {
   const [stap, setStap] = useState<Stap>('adres')
   const [sessionId] = useState(genSessionId)
 
@@ -77,14 +80,9 @@ export default function DakRapportFunnel({ zichtbaar = true }: Props) {
 
   // Adres + scan-data
   const [adresWaarde, setAdresWaarde] = useState('')
-  const [suggesties, setSuggesties] = useState<string[]>([])
-  const [toonDropdown, setToonDropdown] = useState(false)
-  const [actief, setActief] = useState(-1)
-  const [adresMelding, setAdresMelding] = useState<string | null>(null)
   const [meting, setMeting] = useState<DakmetingResultaat | null>(null)
   const [metingBezig, setMetingBezig] = useState(false)
   const [perceelSelectie, setPerceelSelectie] = useState<PerceelSelectie | null>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Email-stap
   const [email, setEmail] = useState('')
@@ -119,67 +117,10 @@ export default function DakRapportFunnel({ zichtbaar = true }: Props) {
   const nokhoogte = hoofd?.hoogte3d?.nokhoogte ?? meting?.hoogte3d?.nokhoogte ?? null
   const daktype = hoofd?.hoogte3d?.gebouwType ?? meting?.hoogte3d?.gebouwType ?? null
 
-  // ── Adres autocomplete ──────────────────────────────────────────
-  function onAdresInput(e: React.ChangeEvent<HTMLInputElement>) {
-    const q = e.target.value
-    setAdresWaarde(q)
-    setMeting(null)
-    setPerceelSelectie(null)
-    setAdresMelding(null)
-    setActief(-1)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (q.length < 4) {
-      setSuggesties([])
-      setToonDropdown(false)
-      return
-    }
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/dakmeting?q=${encodeURIComponent(q)}`)
-        if (!res.ok) throw new Error('Adres opzoeken mislukt')
-        const data = await res.json()
-        const lijst: string[] = data.suggesties ?? []
-        setSuggesties(lijst)
-        setActief(-1)
-        setToonDropdown(lijst.length > 0)
-        setAdresMelding(lijst.length > 0 ? null
-          : 'Geen adres gevonden. Typ straat, huisnummer en gemeente, bijvoorbeeld: Korenmarkt 10, Gent.')
-      } catch {
-        setAdresMelding('Adressen opzoeken lukt nu even niet. Probeer het zo meteen opnieuw.')
-      }
-    }, 300)
-  }
-
-  // Pijltjes, Enter en Escape in de adreslijst
-  function onAdresToets(e: React.KeyboardEvent<HTMLInputElement>) {
-    const lijstOpen = toonDropdown && suggesties.length > 0
-    if (e.key === 'ArrowDown') {
-      if (suggesties.length === 0) return
-      e.preventDefault()
-      setToonDropdown(true)
-      setActief((i) => (i + 1) % suggesties.length)
-    } else if (e.key === 'ArrowUp') {
-      if (!lijstOpen) return
-      e.preventDefault()
-      setActief((i) => (i <= 0 ? suggesties.length - 1 : i - 1))
-    } else if (e.key === 'Enter') {
-      if (!lijstOpen) return
-      e.preventDefault()
-      selecteerAdres(suggesties[actief >= 0 ? actief : 0])
-    } else if (e.key === 'Escape') {
-      if (!lijstOpen) return
-      // Sluit alleen de lijst, niet de modal (die luistert ook op document)
-      e.preventDefault()
-      e.nativeEvent.stopImmediatePropagation()
-      setToonDropdown(false)
-      setActief(-1)
-    }
-  }
-
   async function selecteerAdres(adres: string) {
     setAdresWaarde(adres)
-    setSuggesties([])
-    setToonDropdown(false)
+    setMeting(null)
+    setPerceelSelectie(null)
     setMetingBezig(true)
     setStap('scan')
     try {
@@ -188,6 +129,15 @@ export default function DakRapportFunnel({ zichtbaar = true }: Props) {
     } catch { /* stil falen */ }
     setMetingBezig(false)
   }
+
+  // Adres gekozen op de homepage: meteen naar de kaart
+  const laatsteStart = useRef<number | null>(null)
+  useEffect(() => {
+    if (!startVerzoek || laatsteStart.current === startVerzoek.id) return
+    laatsteStart.current = startVerzoek.id
+    void selecteerAdres(startVerzoek.adres)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startVerzoek])
 
   // ── Stap-overgangen ─────────────────────────────────────────────
   function onPerceelSelect(data: PerceelSelectie) {
@@ -372,70 +322,7 @@ export default function DakRapportFunnel({ zichtbaar = true }: Props) {
               </p>
             </div>
 
-            <div className="relative">
-              <label htmlFor="adres" className="block text-sm font-medium text-gray-700 mb-1">
-                Adres van uw woning
-              </label>
-              <div className="relative">
-                <input
-                  id="adres"
-                  type="text"
-                  autoComplete="off"
-                  role="combobox"
-                  aria-autocomplete="list"
-                  aria-expanded={toonDropdown && suggesties.length > 0}
-                  aria-controls="adres-suggesties"
-                  aria-activedescendant={actief >= 0 ? `adres-optie-${actief}` : undefined}
-                  placeholder="Straat, huisnummer, gemeente"
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 pr-9 text-base text-gray-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-700/25"
-                  value={adresWaarde}
-                  onChange={onAdresInput}
-                  onKeyDown={onAdresToets}
-                  onBlur={() => setTimeout(() => setToonDropdown(false), 150)}
-                  onFocus={() => suggesties.length > 0 && setToonDropdown(true)}
-                />
-                {metingBezig ? (
-                  <span className="absolute right-3 top-3.5 h-4 w-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
-                ) : (
-                  <svg className="absolute right-3 top-3.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                )}
-              </div>
-
-              {toonDropdown && suggesties.length > 0 && (
-                <ul
-                  id="adres-suggesties"
-                  role="listbox"
-                  aria-label="Gevonden adressen"
-                  className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
-                >
-                  {suggesties.map((s, i) => (
-                    <li
-                      key={s}
-                      id={`adres-optie-${i}`}
-                      role="option"
-                      aria-selected={i === actief}
-                      className={`cursor-pointer px-3 py-3 text-sm transition-colors ${
-                        i === actief ? 'bg-green-50 text-green-900' : 'text-gray-800'
-                      }`}
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        selecteerAdres(s)
-                      }}
-                      onMouseEnter={() => setActief(i)}
-                    >
-                      {s}
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {adresMelding && (
-                <p role="status" className="mt-2 text-sm text-gray-700">{adresMelding}</p>
-              )}
-            </div>
+            <AdresZoeker label="Adres van uw woning" onKies={(adres) => void selecteerAdres(adres)} />
 
             <ul className="text-xs text-gray-600 space-y-1 pt-2">
               {['Meteen zichtbaar op de kaart', 'Gegevens van de Vlaamse overheid', 'Gratis, zonder account'].map((t) => (

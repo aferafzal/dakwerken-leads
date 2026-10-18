@@ -40,16 +40,16 @@ export default function VoorbeeldResultaat({ onStart }: { onStart: () => void })
   const dikte = (v: Vlak) => (vlak === v ? 3 : 1.5)
 
   return (
-    <section id="voorbeeld" className="bg-white px-4 py-24 sm:px-6 sm:py-28 lg:px-8">
+    <section id="voorbeeld" className="px-4 py-24 sm:px-6 sm:py-28 lg:px-8" style={{ background: 'hsl(40 33% 98%)' }}>
       <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-x-12 lg:gap-y-0">
 
         {/* ── Intro ── */}
         <div className="order-1 lg:order-none lg:col-start-1 lg:row-start-1">
           <h2 className="text-4xl font-black leading-tight text-balance sm:text-5xl" style={{ color: NAVY }}>
-            Zo ziet uw resultaat eruit
+            Zo ziet uw rapport eruit
           </h2>
           <p className="mt-5 text-base leading-relaxed sm:text-lg" style={{ color: TEKST_GEDEMPT }}>
-            Na een minuut ziet u dit voor uw eigen woning. Bekijk het voorbeeld en klik op een dakvlak.
+            Een voorbeeld. Klik op een dakvlak.
           </p>
         </div>
 
@@ -91,18 +91,29 @@ export default function VoorbeeldResultaat({ onStart }: { onStart: () => void })
             </p>
           </div>
 
+          <dl className="mt-6 space-y-3 text-sm">
+            <div>
+              <dt className="font-bold" style={{ color: NAVY }}>Mogelijke premies</dt>
+              <dd className="mt-0.5" style={{ color: TEKST_GEDEMPT }}>Welke premies voor uw werken kunnen gelden, met een link naar de officiële aanvraag.</dd>
+            </div>
+            <div>
+              <dt className="font-bold" style={{ color: NAVY }}>Aandachtspunten</dt>
+              <dd className="mt-0.5" style={{ color: TEKST_GEDEMPT }}>Waar u op moet letten, zoals asbest in oudere leien of tekenen van slechte isolatie.</dd>
+            </div>
+          </dl>
+
           <button
             type="button"
             onClick={onStart}
             className="mt-8 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl px-8 py-4 text-sm font-bold transition-[filter] hover:brightness-95 sm:w-auto"
             style={{ background: AMBER, color: NAVY }}
           >
-            Bekijk dit voor uw woning →
+            Bereken mijn dak
           </button>
         </div>
 
         {/* ── Tekening met klikbare dakvlakken ── */}
-        <figure className="order-2 m-0 self-center rounded-2xl border p-4 sm:p-6 lg:order-none lg:col-start-2 lg:row-span-2 lg:row-start-1" style={{ background: 'hsl(40 33% 98%)', borderColor: 'hsl(220 13% 88%)' }}>
+        <figure className="order-2 m-0 self-center rounded-2xl border bg-white p-4 sm:p-6 lg:order-none lg:col-start-2 lg:row-span-2 lg:row-start-1" style={{ borderColor: 'hsl(220 13% 88%)' }}>
           <svg
             role="img"
             aria-label="Voorbeeld: bovenaanzicht van een dak met twee hellende dakvlakken, een platte aanbouw, de maten en de nokhoogte"

@@ -6,6 +6,8 @@ import DakRapportFunnel from '@/components/DakRapportFunnel'
 interface Props {
   open: boolean
   onClose: () => void
+  // Adres dat al op de homepage gekozen werd
+  startVerzoek?: { adres: string; id: number } | null
 }
 
 const FOCUSBAAR =
@@ -13,7 +15,7 @@ const FOCUSBAAR =
 
 // De funnel blijft gemount terwijl de modal dicht is, zodat sluiten
 // (Escape, achtergrond, kruisje) de voortgang niet meer wist.
-export default function LeadFormModal({ open, onClose }: Props) {
+export default function LeadFormModal({ open, onClose, startVerzoek = null }: Props) {
   const panelRef = useRef<HTMLDivElement>(null)
   const sluitRef = useRef(onClose)
   sluitRef.current = onClose
@@ -89,7 +91,7 @@ export default function LeadFormModal({ open, onClose }: Props) {
           </svg>
         </button>
 
-        <DakRapportFunnel zichtbaar={open} />
+        <DakRapportFunnel zichtbaar={open} startVerzoek={startVerzoek} />
       </div>
     </div>
   )
