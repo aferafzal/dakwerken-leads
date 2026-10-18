@@ -90,8 +90,7 @@ export async function sendRapportEmail(opts: {
             Bedankt voor uw aanvraag. Uw <strong>volledige dakrapport</strong> is klaar en bevat:
           </p>
           <ul style="font-size:14px;line-height:1.7;color:#374151">
-            <li>3D-model van uw dak</li>
-            <li>Dakoppervlakte, daktype en nokhoogte</li>
+            <li>Dakoppervlakte, dakvorm, helling en nokhoogte</li>
             <li>Buurtvergelijking</li>
             <li>Indicatieve renovatiekosten</li>
             <li>Mogelijke premies</li>

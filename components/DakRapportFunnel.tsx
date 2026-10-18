@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Check, CircleCheck } from 'lucide-react'
 import { hoofdGebouw } from '@/lib/dak'
+import { DRIE_D_AAN } from '@/lib/instellingen'
 import AdresZoeker from '@/components/AdresZoeker'
 import type { DakmetingResultaat } from '@/app/api/dakmeting/route'
 import type { KaartFase, PerceelSelectie } from './DakKaart'
@@ -152,8 +153,9 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
 
   function naarPreview() {
     setStap('preview')
+    if (!DRIE_D_AAN) return
 
-    // Het 3D-model wordt op de achtergrond gemaakt voor het rapport.
+    // 3D staat uit (lib/instellingen.ts). Aan: het 3D-model wordt op de achtergrond gemaakt voor het rapport.
     // In de funnel tonen we het niet: de 2D-meting is sneller en betrouwbaarder.
     const capakey = perceelSelectie?.capakey ?? meting?.capakey
     const gebouwenPayload = (perceelSelectie?.gebouwen ?? [])
@@ -202,6 +204,13 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
               nokhoogte,
               daktype,
               aantalGebouwen,
+              gebouwen: (meetellend ?? []).map((g) => ({
+                id: g.id,
+                woning: !!g.aangeduid,
+                grondOppervlak: g.oppervlakte,
+                dakOppervlak: g.dakOppervlak ?? g.oppervlakte,
+                dakvorm: g.scan?.meetbaar ? g.scan.dakvorm : null,
+              })),
               dakscan: hoofd?.scan?.meetbaar ? {
                 dakvorm: hoofd.scan.dakvorm,
                 helling: hoofd.scan.helling,
@@ -357,7 +366,9 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
               </h2>
               <p className="text-sm text-slate-600">
                 {kaartFase === 'klaar'
-                  ? 'Staat de verkeerde woning aangeduid? Tik dan op de kaart op het juiste dak.'
+                  ? (perceelSelectie?.gebouwen.length ?? 0) > 1
+                    ? 'Garage of bijgebouw meetellen? Tik erop of vink het aan. Verkeerde woning? Tik op het juiste dak.'
+                    : 'Staat de verkeerde woning aangeduid? Tik dan op de kaart op het juiste dak.'
                   : kaartFase === 'leeg'
                     ? 'Tik op de kaart op het dak van uw woning.'
                     : 'Met de luchtfoto en de laserhoogtemeting van de Vlaamse overheid.'}

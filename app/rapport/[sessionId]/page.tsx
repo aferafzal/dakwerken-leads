@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { DRIE_D_AAN } from '@/lib/instellingen'
 import { notFound } from 'next/navigation'
 import { list } from '@vercel/blob'
 import { createClient } from '@/lib/supabase/server'
@@ -19,11 +20,11 @@ export async function generateMetadata(
 
   return {
     title: `Dakrapport voor ${adres}${gemeente}`,
-    description: `Persoonlijk dakrapport: 3D-model, renovatiekosten, premies en aandachtspunten voor ${adres}.`,
+    description: `Persoonlijk dakrapport: dakmeting, renovatiekosten, premies en aandachtspunten voor ${adres}.`,
     robots: { index: false, follow: false }, // privacy: rapport is uniek per gebruiker
     openGraph: {
       title: `Dakrapport voor ${adres}`,
-      description: 'Uw persoonlijk dakrapport met 3D-model, kosten en premies.',
+      description: 'Uw persoonlijk dakrapport met dakmeting, kosten en premies.',
     },
   }
 }
@@ -147,6 +148,7 @@ type LodMetadata = {
 }
 
 async function findLod2(capakey: string | undefined): Promise<{ glbUrl: string | null; metadata: LodMetadata | null }> {
+  if (!DRIE_D_AAN) return { glbUrl: null, metadata: null }
   if (!capakey) return { glbUrl: null, metadata: null }
   const safe = capakey.replace(/\//g, '_')
   try {

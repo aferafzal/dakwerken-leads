@@ -132,6 +132,20 @@ function aangeduidGebouw(gebouwen: GebouwInfo[], punt: [number, number]): number
   return beste
 }
 
+// Nummer per gebouw (het aangeduide gebouw is "uw woning"); de andere 2, 3, … van groot naar klein
+function gebouwNummers(gebouwen: GebouwInfo[]): Map<number, number> {
+  const anderen = gebouwen
+    .map((g, i) => ({ g, i }))
+    .filter(({ g }) => !g.aangeduid)
+    .sort((a, b) => (b.g.oppervlakte ?? 0) - (a.g.oppervlakte ?? 0))
+  return new Map(anderen.map(({ i }, n) => [i, n + 2]))
+}
+
+function gebouwNaam(g: GebouwInfo, nr: number | undefined): string {
+  if (g.aangeduid) return 'Uw woning'
+  return `${/bijgebouw/i.test(g.hoogte3d?.gebouwType ?? '') ? 'Bijgebouw' : 'Gebouw'} ${nr ?? ''}`.trim()
+}
+
 export default function DakKaart({ lat, lng, onPerceelSelect, onFase }: DakKaartProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstance = useRef<L.Map | null>(null)
@@ -144,6 +158,8 @@ export default function DakKaart({ lat, lng, onPerceelSelect, onFase }: DakKaart
   const [fase, zetFase] = useState<Fase>('zoeken')
   const setFase = (f: Fase) => { zetFase(f); faseRef.current?.(f) }
   const [selectie, setSelectie] = useState<PerceelSelectie | null>(null)
+  // Aan- of uitvinken van een gebouw (kaart en lijst gebruiken dezelfde functie)
+  const wisselRef = useRef<(i: number) => void>(() => {})
 
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return
@@ -155,6 +171,9 @@ export default function DakKaart({ lat, lng, onPerceelSelect, onFase }: DakKaart
       zoomControl: true,
       // Op gsm: één vinger scrolt de pagina, niet de kaart (inzoomen met twee vingers blijft)
       dragging: !L.Browser.mobile,
+      // Geen focus bij een tik: anders scrolt het venster mee en komt de tik op een andere plek terecht.
+      // De lijst met vinkjes onder de kaart blijft met het toetsenbord bruikbaar.
+      keyboard: false,
     })
     mapInstance.current = map
 
@@ -184,6 +203,53 @@ export default function DakKaart({ lat, lng, onPerceelSelect, onFase }: DakKaart
     const labelLaag = L.layerGroup().addTo(map)
     let labels: { waar: [number, number]; tekst: string }[] = []
     let verzoek = 0
+    let huidig: PerceelSelectie | null = null
+    let perGebouw: { omtrek: L.Polygon | null; scan: L.ImageOverlay | null }[] = []
+
+    function bewaar(sel: PerceelSelectie) {
+      huidig = sel
+      setSelectie(sel)
+      callbackRef.current(sel)
+    }
+
+    // Wat meetelt: dikke witte omtrek en gekleurde dakvlakken. Wat niet meetelt: dunne omtrek.
+    function toonGebouw(i: number) {
+      const g = huidig?.gebouwen[i]
+      const laag = perGebouw[i]
+      if (!g || !laag) return
+      const mee = g.meetellen !== false
+      const scan = g.scan?.meetbaar && g.scan.raster ? g.scan : null
+      if (mee && scan && !laag.scan) {
+        const beeld = tekenScan(scan)
+        if (beeld) {
+          laag.scan = L.imageOverlay(beeld, [[scan.raster!.zuid, scan.raster!.west], [scan.raster!.noord, scan.raster!.oost]], {
+            className: 'dakscan-laag',
+            interactive: false,
+          })
+        }
+      }
+      if (laag.scan) {
+        if (mee && !lagen.hasLayer(laag.scan)) lagen.addLayer(laag.scan)
+        if (!mee && lagen.hasLayer(laag.scan)) lagen.removeLayer(laag.scan)
+      }
+      laag.omtrek?.setStyle({
+        weight: mee ? 3 : 1.5,
+        opacity: mee ? 1 : 0.75,
+        fillOpacity: mee ? (laag.scan ? 0 : 0.15) : 0.08,
+      })
+      laag.omtrek?.bringToFront()
+    }
+
+    function wissel(i: number) {
+      if (!huidig) return
+      const g = huidig.gebouwen[i]
+      const aantalMee = huidig.gebouwen.filter((x) => x.meetellen !== false).length
+      // Er telt altijd minstens één gebouw mee
+      if (!g || (g.meetellen !== false && aantalMee <= 1)) return
+      bewaar({ ...huidig, gebouwen: huidig.gebouwen.map((x, j) => (j === i ? { ...x, meetellen: x.meetellen === false } : x)) })
+      toonGebouw(i)
+    }
+    wisselRef.current = wissel
 
     // Labels zonder overlap: een label dat te dicht bij een vorig label staat, valt weg
     function plaatsLabels() {
@@ -207,6 +273,8 @@ export default function DakKaart({ lat, lng, onPerceelSelect, onFase }: DakKaart
       lagen.clearLayers()
       labels = []
       labelLaag.clearLayers()
+      huidig = null
+      perGebouw = []
       setFase('zoeken')
       setSelectie(null)
 
@@ -228,32 +296,45 @@ export default function DakKaart({ lat, lng, onPerceelSelect, onFase }: DakKaart
       const hoofdIndex = aangeduidGebouw(data.gebouwen, punt)
       // Standaard telt enkel het aangeduide gebouw mee; andere gebouwen op het perceel worden vermeld
       const gebouwen = data.gebouwen.map((g, i) => ({ ...g, aangeduid: i === hoofdIndex, meetellen: i === hoofdIndex }))
-      let huidig: PerceelSelectie = { ...data, gebouwen }
 
       // Perceel: dunne witte stippellijn; gebouwen: witte omtrek
       if (data.perceelGrenzen && data.perceelGrenzen.length > 2) {
         L.polygon(data.perceelGrenzen, { color: '#ffffff', weight: 1.5, opacity: 0.8, dashArray: '6 5', fill: false, interactive: false }).addTo(lagen)
       }
-      const omtrekken = gebouwen.map((g) =>
-        g.grenzen.length > 2
-          ? L.polygon(g.grenzen, {
-              color: '#ffffff',
-              weight: g.meetellen ? 3 : 1.5,
-              opacity: g.meetellen ? 1 : 0.75,
-              fillColor: '#ffffff',
-              fillOpacity: g.meetellen ? 0.15 : 0.08,
-              interactive: false,
-            }).addTo(lagen)
-          : null,
-      )
+      const nummers = gebouwNummers(gebouwen)
+      perGebouw = gebouwen.map((g, i) => {
+        if (g.grenzen.length < 3) return { omtrek: null, scan: null }
+        // Tik op een gebouw van dit perceel: mee- of niet meetellen (de kaart zoekt dan geen andere woning)
+        const omtrek = L.polygon(g.grenzen, { color: '#ffffff', fillColor: '#ffffff', bubblingMouseEvents: false }).addTo(lagen)
+        const tik = () => {
+          if (!huidig?.gebouwen[i]?.aangeduid) wissel(i)
+        }
+        omtrek.on('click', tik)
+        // Nummer op de andere gebouwen, zodat ze in de lijst herkenbaar zijn.
+        // Aantikbaar: de tik gaat via de omtrek (zelfde klik-afhandeling) en niet naar de kaart.
+        if (nummers.has(i)) {
+          omtrek.bindTooltip(String(nummers.get(i)), {
+            permanent: true,
+            direction: 'center',
+            className: 'gebouw-nummer',
+            interactive: true,
+            bubblingMouseEvents: false,
+          } as L.TooltipOptions)
+        }
+        return { omtrek, scan: null }
+      })
+      // Inzoomen op de woning; liggen de andere gebouwen dichtbij, dan komen ze mee in beeld (om aan te tikken)
       const hoofd = gebouwen[hoofdIndex]
       if (hoofd && hoofd.grenzen.length > 2) {
-        map.flyToBounds(L.latLngBounds(hoofd.grenzen).pad(0.15), { maxZoom: 21, duration: 0.6 })
+        const alle = gebouwen.filter((g) => g.grenzen.length > 2).flatMap((g) => g.grenzen)
+        const allesInBeeld = L.latLngBounds(alle).pad(0.1)
+        const doel = gebouwen.length > 1 && map.getBoundsZoom(allesInBeeld) >= 20 ? allesInBeeld : L.latLngBounds(hoofd.grenzen).pad(0.15)
+        map.flyToBounds(doel, { maxZoom: 21, duration: 0.6 })
       }
 
-      setSelectie(huidig)
+      bewaar({ ...data, gebouwen })
+      gebouwen.forEach((_, i) => toonGebouw(i))
       setFase('meten')
-      callbackRef.current(huidig)
 
       // Dakscan per gebouw (laserhoogtemeting)
       const scans = await Promise.all(
@@ -269,40 +350,41 @@ export default function DakKaart({ lat, lng, onPerceelSelect, onFase }: DakKaart
       )
       if (dit !== verzoek) return
 
-      scans.forEach((scan, i) => {
-        if (!gebouwen[i].meetellen || !scan?.meetbaar || !scan.raster) return
-        const beeld = tekenScan(scan)
-        if (beeld) {
-          L.imageOverlay(beeld, [[scan.raster.zuid, scan.raster.west], [scan.raster.noord, scan.raster.oost]], {
-            className: 'dakscan-laag',
-            interactive: false,
-          }).addTo(lagen)
-        }
-        omtrekken[i]?.setStyle({ fillOpacity: 0 })
-        omtrekken[i]?.bringToFront()
-
-        // Labels op de grootste vlakken van het aangeduide gebouw
-        if (!gebouwen[i].aangeduid) return
-        labels = scan.vlakken
-          .filter((v) => v.grondOppervlak >= 8)
-          .slice(0, 3)
-          .map((v) => ({ waar: v.midden, tekst: v.richting ? `${KORT[v.richting]} · ${v.helling}°` : 'Plat' }))
+      // Meetwaarden invullen (de bezoeker kan intussen al gebouwen aan- of uitgevinkt hebben)
+      const metScan = huidig!.gebouwen.map((g, i) => {
+        const scan = scans[i]
+        return scan?.meetbaar && scan.dakOppervlak ? { ...g, dakOppervlak: scan.dakOppervlak, scan } : { ...g, scan }
       })
-      plaatsLabels()
+      bewaar({ ...huidig!, gebouwen: metScan })
+      metScan.forEach((_, i) => toonGebouw(i))
 
-      huidig = {
-        ...huidig,
-        gebouwen: gebouwen.map((g, i) => {
-          const scan = scans[i]
-          return scan?.meetbaar && scan.dakOppervlak ? { ...g, dakOppervlak: scan.dakOppervlak, scan } : { ...g, scan }
-        }),
-      }
-      setSelectie(huidig)
+      // Labels op de grootste vlakken van het aangeduide gebouw
+      const scanHoofd = scans[hoofdIndex]
+      labels = scanHoofd?.meetbaar
+        ? scanHoofd.vlakken
+            .filter((v) => v.grondOppervlak >= 8)
+            .slice(0, 3)
+            .map((v) => ({ waar: v.midden, tekst: v.richting ? `${KORT[v.richting]} · ${v.helling}°` : 'Plat' }))
+        : []
+      plaatsLabels()
       setFase('klaar')
-      callbackRef.current(huidig)
     }
 
-    map.on('click', (e: L.LeafletMouseEvent) => void zoekOp([e.latlng.lat, e.latlng.lng]))
+    // Een tik komt op touchschermen soms bij de kaart binnen in plaats van bij het gebouw of zijn nummer.
+    // Ligt de tik op een gebouw van dit perceel of vlak bij een nummer: aan- of uitvinken. Anders: een andere woning zoeken.
+    map.on('click', (e: L.LeafletMouseEvent) => {
+      const punt: [number, number] = [e.latlng.lat, e.latlng.lng]
+      const raak = huidig?.gebouwen.findIndex((g, i) => {
+        const nummer = perGebouw[i]?.omtrek?.getTooltip()?.getLatLng()
+        const opNummer = nummer ? map.latLngToContainerPoint(nummer).distanceTo(e.containerPoint) < 16 : false
+        return opNummer || (g.grenzen.length > 2 && binnen(punt, g.grenzen))
+      }) ?? -1
+      if (raak >= 0) {
+        if (!huidig!.gebouwen[raak].aangeduid) wissel(raak)
+        return
+      }
+      void zoekOp(punt)
+    })
     void zoekOp([lat, lng])
 
     return () => {
@@ -356,7 +438,7 @@ export default function DakKaart({ lat, lng, onPerceelSelect, onFase }: DakKaart
           <Stap klaar={false} wacht={fase === 'zoeken'} tekst="Dak meten met de laserhoogtemeting" />
         </ul>
       ) : (
-        <Meetstaat gebouwen={gebouwen} hoofd={hoofd} scan={scan} />
+        <Meetstaat gebouwen={gebouwen} hoofd={hoofd} scan={scan} onWissel={(i) => wisselRef.current(i)} />
       )}
 
       <style jsx global>{`
@@ -383,6 +465,20 @@ export default function DakKaart({ lat, lng, onPerceelSelect, onFase }: DakKaart
           box-shadow: 0 2px 6px rgba(15, 23, 42, 0.3);
         }
         .dakvlak-label::before { display: none; }
+        .gebouw-nummer {
+          background: #ffffff;
+          color: #0f172a;
+          border: none;
+          border-radius: 999px;
+          min-width: 22px;
+          padding: 1px 7px;
+          font-size: 11px;
+          font-weight: 800;
+          text-align: center;
+          box-shadow: 0 1px 4px rgba(15, 23, 42, 0.35);
+        }
+        .gebouw-nummer::before { display: none; }
+        .gebouw-nummer.leaflet-interactive { cursor: pointer; }
         /* Eén moment: de gemeten vlakken schuiven van boven naar onder in beeld */
         @media (prefers-reduced-motion: no-preference) {
           .dakscan-laag { animation: dakscan-in 900ms cubic-bezier(0.16, 1, 0.3, 1) both; }
@@ -411,12 +507,19 @@ function Stap({ klaar, wacht = false, tekst }: { klaar: boolean; wacht?: boolean
   )
 }
 
-function Meetstaat({ gebouwen, hoofd, scan }: { gebouwen: GebouwInfo[]; hoofd: GebouwInfo | null; scan: Dakscan | null }) {
+function Meetstaat({ gebouwen, hoofd, scan, onWissel }: {
+  gebouwen: GebouwInfo[]
+  hoofd: GebouwInfo | null
+  scan: Dakscan | null
+  onWissel: (i: number) => void
+}) {
   const opp = (g: GebouwInfo) => g.dakOppervlak ?? g.oppervlakte ?? 0
   const mee = gebouwen.filter((g) => g.meetellen !== false)
   const totaal = mee.reduce((s, g) => s + opp(g), 0)
-  const anderen = gebouwen.filter((g) => g.meetellen === false)
-  const totaalAnderen = anderen.reduce((s, g) => s + opp(g), 0)
+  const nummers = gebouwNummers(gebouwen)
+  const volgorde = gebouwen
+    .map((g, i) => ({ g, i }))
+    .sort((a, b) => (a.g.aangeduid ? -1 : b.g.aangeduid ? 1 : (nummers.get(a.i) ?? 0) - (nummers.get(b.i) ?? 0)))
 
   const samenvatting = scan
     ? [
@@ -453,7 +556,13 @@ function Meetstaat({ gebouwen, hoofd, scan }: { gebouwen: GebouwInfo[]; hoofd: G
         </p>
         <p className="text-3xl font-black tabular-nums tracking-tight text-navy">±{getal(totaal)}{'\u00a0'}m²</p>
       </div>
-      {samenvatting && <p className="mt-1 text-sm text-slate-700">{samenvatting}</p>}
+      {samenvatting && (
+        <p className="mt-1 text-sm text-slate-700">
+          {mee.length > 1 && hoofd
+            ? `${gebouwNaam(hoofd, nummers.get(gebouwen.indexOf(hoofd)))}: ${samenvatting.charAt(0).toLowerCase()}${samenvatting.slice(1)}`
+            : samenvatting}
+        </p>
+      )}
 
       {getoond.length > 0 && (
         <ul className="mt-4 divide-y divide-slate-100 border-y border-slate-100">
@@ -472,16 +581,44 @@ function Meetstaat({ gebouwen, hoofd, scan }: { gebouwen: GebouwInfo[]; hoofd: G
         </ul>
       )}
 
+      {gebouwen.length > 1 && (
+        <fieldset className="mt-5">
+          <legend className="text-sm font-semibold text-navy">Welke gebouwen tellen mee?</legend>
+          <p className="mt-0.5 text-xs text-slate-600">Vink een garage of bijgebouw aan, of tik erop op de kaart.</p>
+          <ul className="mt-2 divide-y divide-slate-100 border-y border-slate-100">
+            {volgorde.map(({ g, i }) => {
+              const aan = g.meetellen !== false
+              const vast = aan && mee.length <= 1
+              const vorm = g.scan?.meetbaar ? g.scan.dakvorm : null
+              return (
+                <li key={g.id ?? i}>
+                  <label className={`flex min-h-11 items-center gap-3 py-1.5 text-sm ${vast ? '' : 'cursor-pointer'}`}>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 flex-shrink-0 accent-navy"
+                      checked={aan}
+                      disabled={vast}
+                      onChange={() => onWissel(i)}
+                    />
+                    <span className="flex-1">
+                      <span className="font-semibold text-navy">{gebouwNaam(g, nummers.get(i))}</span>
+                      {vorm && <span className="text-slate-600"> · {vorm}</span>}
+                    </span>
+                    <span className={`w-16 text-right tabular-nums ${aan ? 'font-semibold text-navy' : 'text-slate-600'}`}>
+                      {getal(opp(g))}{'\u00a0'}m²
+                    </span>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+        </fieldset>
+      )}
+
       <div className="mt-3 space-y-1 text-xs leading-relaxed text-slate-600">
         {rest.length > 0 && restOpp > 0 && (
           <p>
             Plus {rest.length === 1 ? 'een klein dakdeel' : `${rest.length} kleine dakdelen`} ({getal(restOpp)} m²), bijvoorbeeld een dakkapel of goot.
-          </p>
-        )}
-        {anderen.length > 0 && (
-          <p>
-            Op uw perceel {anderen.length === 1 ? 'staat nog een gebouw' : `staan nog ${anderen.length} gebouwen`} ({getal(totaalAnderen)} m² dak).
-            {anderen.length === 1 ? ' Dat telt' : ' Die tellen'} nu niet mee.
           </p>
         )}
         {scan ? (
