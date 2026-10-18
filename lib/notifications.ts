@@ -90,12 +90,12 @@ export async function sendRapportEmail(opts: {
             Bedankt voor uw aanvraag. Uw <strong>volledige dakrapport</strong> is klaar en bevat:
           </p>
           <ul style="font-size:14px;line-height:1.7;color:#374151">
-            <li>Dakoppervlakte, dakvorm, helling en nokhoogte</li>
-            <li>Buurtvergelijking</li>
-            <li>Indicatieve renovatiekosten</li>
-            <li>Mogelijke premies</li>
-            <li>Persoonlijke aandachtspunten</li>
-            ${opts.oppervlakte ? `<li>Schatting energiebesparing bij isolatie (uw dak: ${opts.oppervlakte} m²)</li>` : ''}
+            <li>Uw dak op de luchtfoto, met elk dakvlak gemeten</li>
+            <li>Dakoppervlakte, dakvorm, helling en nokhoogte${opts.oppervlakte ? ` (uw dak: ±${opts.oppervlakte} m²)` : ''}</li>
+            <li>Een prijsindicatie per soort werk</li>
+            <li>Aandachtspunten voor uw woning</li>
+            <li>Uw dak door de jaren heen</li>
+            <li>Premies en financiering</li>
           </ul>
           <div style="text-align:center;margin:28px 0">
             <a href="${rapportUrl}" style="background:#15803d;color:white;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block">
