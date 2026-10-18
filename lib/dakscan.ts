@@ -14,6 +14,7 @@
 
 import { fromArrayBuffer } from 'geotiff'
 import { extractCoordsFromGml, naarWgs84, shoelace } from '@/lib/lambert'
+import { zoekErfgoed, type Erfgoed } from '@/lib/erfgoed'
 
 const WCS = 'https://geo.api.vlaanderen.be/DHMV/wcs'
 const BASISREG = 'https://api.basisregisters.vlaanderen.be/v2'
@@ -50,6 +51,7 @@ export type Dakscan = {
     cellen: string             // rij per rij van noord naar zuid; '.' = buiten het gebouw
   } | null
   bron: string
+  erfgoed: Erfgoed[]           // beschermd monument, stadsgezicht, … (Onroerend Erfgoed)
 }
 
 type Raster = { data: Float32Array; breedte: number; hoogte: number; x0: number; y0: number }
@@ -147,9 +149,18 @@ function zonScore(richting: number | null): number {
 export async function scanGebouw(gebouwId: string): Promise<Dakscan | null> {
   const ring = await gebouwOmtrek(gebouwId)
   if (!ring) return null
+  // Dakmeting en erfgoed tegelijk ophalen
+  const [meting, erfgoed] = await Promise.all([
+    meetDak(gebouwId, ring),
+    zoekErfgoed(ring).catch(() => [] as Erfgoed[]),
+  ])
+  return { ...meting, erfgoed }
+}
+
+async function meetDak(gebouwId: string, ring: [number, number][]): Promise<Omit<Dakscan, 'erfgoed'>> {
   const grondOppervlak = Math.round(shoelace(ring))
 
-  const leeg: Dakscan = {
+  const leeg: Omit<Dakscan, 'erfgoed'> = {
     gebouwId, meetbaar: false, grondOppervlak, dakOppervlak: null, dakvorm: null,
     helling: null, nokhoogte: null, vlakken: [], raster: null, bron: DAKSCAN_BRON,
   }

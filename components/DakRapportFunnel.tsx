@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Check, CircleCheck } from 'lucide-react'
-import { hoofdGebouw } from '@/lib/dak'
+import { erfgoedVan, hoofdGebouw } from '@/lib/dak'
 import { DRIE_D_AAN } from '@/lib/instellingen'
 import AdresZoeker from '@/components/AdresZoeker'
 import type { DakmetingResultaat } from '@/app/api/dakmeting/route'
@@ -211,6 +211,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
                 dakOppervlak: g.dakOppervlak ?? g.oppervlakte,
                 dakvorm: g.scan?.meetbaar ? g.scan.dakvorm : null,
               })),
+              erfgoed: erfgoedVan(perceelSelectie?.gebouwen ?? []),
               dakscan: hoofd?.scan?.meetbaar ? {
                 dakvorm: hoofd.scan.dakvorm,
                 helling: hoofd.scan.helling,

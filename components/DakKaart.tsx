@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Check, LoaderCircle } from 'lucide-react'
+import { Check, Landmark, LoaderCircle } from 'lucide-react'
 import type { GebouwInfo, PerceelKlikResultaat } from '@/app/api/dakmeting/route'
 import type { Dakscan, Dakvlak, Windrichting } from '@/lib/dakscan'
-import { hoofdGebouw } from '@/lib/dak'
+import type { ErfgoedSoort } from '@/lib/erfgoed'
+import { erfgoedVan, hoofdGebouw } from '@/lib/dak'
 
 export type PerceelSelectie = PerceelKlikResultaat
 
@@ -42,6 +43,26 @@ const rgb = ([r, g, b]: [number, number, number], a = 1) => `rgba(${r}, ${g}, ${
 const KORT: Record<Windrichting, string> = {
   noord: 'Noord', noordoost: 'Noordoost', oost: 'Oost', zuidoost: 'Zuidoost',
   zuid: 'Zuid', zuidwest: 'Zuidwest', west: 'West', noordwest: 'Noordwest',
+}
+
+// Wat erfgoed betekent voor dakwerken (rustig en algemeen: de fiche geeft de details)
+const ERFGOED_TEKST: Record<ErfgoedSoort, { titel: string; tekst: string }> = {
+  monument: {
+    titel: 'Beschermd monument',
+    tekst: 'Uw woning is beschermd als monument. Voor werken aan het dak is meestal een toelating of vergunning nodig. Vraag dit na vóór u start.',
+  },
+  gezicht: {
+    titel: 'Beschermd stads- of dorpsgezicht',
+    tekst: 'Uw woning ligt in een beschermd stads- of dorpsgezicht. Werken die het uitzicht van het dak veranderen, zoals andere pannen of dakramen, vragen meestal een toelating of vergunning.',
+  },
+  landschap: {
+    titel: 'Beschermd landschap',
+    tekst: 'Uw woning ligt in een beschermd cultuurhistorisch landschap. Werken die het uitzicht veranderen, kunnen een toelating of vergunning vragen.',
+  },
+  bouwkundig: {
+    titel: 'Bouwkundig erfgoed',
+    tekst: 'Uw woning staat op de lijst van het vastgesteld bouwkundig erfgoed. Bij een vergunningsaanvraag wordt daar rekening mee gehouden.',
+  },
 }
 
 const getal = (n: number, decimalen = 0) =>
@@ -547,6 +568,7 @@ function Meetstaat({ gebouwen, hoofd, scan, onWissel }: {
   const rest = scan ? scan.vlakken.filter((v) => !getoondeDelen.includes(v)) : []
   const restOpp = rest.reduce((s, v) => s + v.dakOppervlak, 0)
   const scanMislukt = !scan && hoofd?.scan === null
+  const erfgoed = erfgoedVan(gebouwen)[0]
 
   return (
     <div className="border-t border-slate-200 px-4 py-4 sm:px-5">
@@ -579,6 +601,26 @@ function Meetstaat({ gebouwen, hoofd, scan, onWissel }: {
             </li>
           ))}
         </ul>
+      )}
+
+      {erfgoed && (
+        <div className="mt-4 flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <Landmark className="mt-0.5 h-5 w-5 flex-shrink-0 text-navy" aria-hidden />
+          <div className="text-sm">
+            <p className="font-semibold text-navy">{ERFGOED_TEKST[erfgoed.soort].titel}</p>
+            <p className="mt-0.5 text-slate-700">{ERFGOED_TEKST[erfgoed.soort].tekst}</p>
+            {erfgoed.url && (
+              <a
+                href={erfgoed.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-block font-semibold text-navy underline underline-offset-2"
+              >
+                Bekijk de fiche bij Onroerend Erfgoed
+              </a>
+            )}
+          </div>
+        </div>
       )}
 
       {gebouwen.length > 1 && (
