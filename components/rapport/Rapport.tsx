@@ -1,7 +1,6 @@
 import { Clock, Droplets, Info, Landmark, Phone, ShieldAlert, Wrench } from 'lucide-react'
 import type { Aandachtspunt, RapportData } from '@/lib/rapport'
 import { kaderRond, luchtfotoUrl } from '@/lib/rapport'
-import { euro } from '@/lib/kosten'
 import type { Windrichting } from '@/lib/dakscan'
 import { BEDRIJF } from '@/lib/bedrijf'
 import DakscanBeeld from './DakscanBeeld'
@@ -20,6 +19,7 @@ const ICOON: Record<Aandachtspunt['soort'], typeof Info> = {
   onderhoud: Wrench,
 }
 
+const euro = (n: number) => `€${Math.round(n).toLocaleString('nl-BE')}`
 const getal = (n: number, d = 0) => n.toLocaleString('nl-BE', { minimumFractionDigits: d, maximumFractionDigits: d })
 const datum = (iso: string) => new Date(iso).toLocaleDateString('nl-BE', { day: 'numeric', month: 'long', year: 'numeric' })
 const cssTekst = (s: string) => `"${s.replace(/["\\]/g, '')}"`
@@ -46,7 +46,7 @@ function SectieKop({ titel, inleiding }: { titel: string; inleiding?: string }) 
 }
 
 export default function Rapport({ data, voorbeeld = false }: { data: RapportData; voorbeeld?: boolean }) {
-  const hoofdPrijs = data.kosten.find((k) => k.totaal)
+  const hoofdPrijs = data.kosten.regels.find((r) => r.max > 0)
   const samenvatting = [
     data.dakvorm,
     data.helling !== null && `helling\u00a0±${data.helling}°`,
@@ -95,6 +95,11 @@ export default function Rapport({ data, voorbeeld = false }: { data: RapportData
       .scan-raster table + table { margin-top: 5mm !important; }
       .rapport-kop h1 { font-size: 20pt !important; }
       .compact-print li { padding-top: 1.5mm !important; padding-bottom: 1.5mm !important; }
+      .inzichten { display: grid !important; grid-template-columns: 1fr 1fr; gap: 2.5mm; }
+      .inzichten > li { margin: 0 !important; padding: 2.5mm 3mm !important; font-size: 8.5pt; }
+      .aandachtspunt { padding: 2.5mm 3.5mm !important; font-size: 8.5pt; }
+      .aandachtspunt-volgend { margin-top: 2mm !important; }
+      .rapport-inhoud p, .rapport-inhoud td { line-height: 1.4; }
       .compact-print-blok { padding: 5mm !important; }
       .compact-print-blok h2 { font-size: 15pt !important; }
       .rapport-inhoud h2 { font-size: 16pt; }
@@ -132,11 +137,14 @@ export default function Rapport({ data, voorbeeld = false }: { data: RapportData
                   {samenvatting && <dd className="mt-1 text-sm text-white/85">{samenvatting}</dd>}
                 </div>
               )}
-              {hoofdPrijs?.totaal && (
+              {hoofdPrijs && (
                 <div>
-                  <dt className="text-sm text-white/75">{hoofdPrijs.naam}, indicatief</dt>
+                  <dt className="text-sm text-white/75">{hoofdPrijs.naam}, {data.kosten.btwInbegrepen ? 'incl.' : 'excl.'} btw</dt>
                   <dd className="text-2xl font-bold tabular-nums text-white">
-                    {euro(hoofdPrijs.totaal[0])} – {euro(hoofdPrijs.totaal[1])}
+                    {euro(hoofdPrijs.min)} – {euro(hoofdPrijs.max)}
+                  </dd>
+                  <dd className="text-sm text-white/75">
+                    {data.verfijnd ? 'Uw persoonlijke prijs' : 'Algemene prijs'}, op ±{data.kosten.nauwkeurigheid}% nauwkeurig
                   </dd>
                 </div>
               )}
@@ -236,11 +244,13 @@ export default function Rapport({ data, voorbeeld = false }: { data: RapportData
         </Sectie>
 
         {/* Wat kost het */}
-        {data.kosten.length > 0 && (
+        {data.kosten.regels.length > 0 && (
           <Sectie
             klasse="print-nieuwe-pagina"
             titel="Wat kost het?"
-            inleiding="Een prijsvork per soort werk, berekend uit de gemeten oppervlakte en de gangbare prijzen per m². De echte prijs hangt af van materiaal, bereikbaarheid en de staat van het dak."
+            inleiding={data.verfijnd
+              ? 'Uw persoonlijke prijs: berekend uit uw gemeten dak en uw antwoorden. De echte prijs hangt nog af van materiaalkeuze en de staat van het dak.'
+              : 'Een prijsvork per soort werk, berekend uit uw gemeten dak en gangbare prijzen. Hoe meer we over uw dak weten, hoe smaller de vork.'}
           >
             <table className="w-full text-sm">
               <thead>
@@ -250,24 +260,40 @@ export default function Rapport({ data, voorbeeld = false }: { data: RapportData
                 </tr>
               </thead>
               <tbody>
-                {data.kosten.map((k) => (
-                  <tr key={k.soort} className="border-b border-slate-100 align-top">
+                {data.kosten.regels.map((r) => (
+                  <tr key={r.werk} className="border-b border-slate-100 align-top">
                     <td className="py-3 pr-3">
-                      <p className="font-semibold text-navy">{k.naam}</p>
-                      <p className="text-slate-600">
-                        {k.oppervlakte ? `${getal(k.oppervlakte)}\u00a0m² × ${k.eenheidsprijs}` : `${k.uitleg}, ${k.eenheidsprijs}`}
-                      </p>
+                      <p className="font-semibold text-navy">{r.naam}</p>
+                      <p className="text-slate-600">{r.uitleg}</p>
                     </td>
                     <td className="whitespace-nowrap py-3 text-right font-bold tabular-nums text-navy">
-                      {k.totaal ? `${euro(k.totaal[0])} – ${euro(k.totaal[1])}` : '—'}
+                      {r.max > 0 ? `${euro(r.min)} – ${euro(r.max)}` : '—'}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <div className="mt-4 flex items-center gap-3 text-sm">
+              <span className="font-semibold text-navy">Nauwkeurigheid ±{data.kosten.nauwkeurigheid}%</span>
+              <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200" aria-hidden>
+                <span className="block h-full rounded-full bg-amber" style={{ width: `${data.kosten.zekerheid}%` }} />
+              </span>
+            </div>
+
+            {data.inzichten.length > 0 && (
+              <ul className="inzichten mt-4 space-y-2">
+                {data.inzichten.map((i) => (
+                  <li key={i.titel} className="rounded-xl border border-slate-200 p-3 text-sm">
+                    <p className="font-semibold text-navy">{i.titel}</p>
+                    <p className="mt-0.5 text-slate-700">{i.tekst}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+
             <p className="mt-3 max-w-prose text-xs leading-relaxed text-slate-600">
-              Indicatieve marktprijzen. Een gecertificeerde dakwerker maakt na een plaatsbezoek een definitieve offerte.
-              Voor de renovatie van een woning ouder dan tien jaar geldt meestal 6% btw in plaats van 21%.
+              Indicatieve prijzen, {data.kosten.btwInbegrepen ? 'inclusief' : 'exclusief'} btw. Een gecertificeerde dakwerker maakt na een plaatsbezoek een definitieve offerte.
+              {data.kosten.btwInbegrepen ? '' : ' Voor de renovatie van een woning ouder dan tien jaar geldt meestal 6% btw in plaats van 21%.'}
             </p>
           </Sectie>
         )}
@@ -277,7 +303,7 @@ export default function Rapport({ data, voorbeeld = false }: { data: RapportData
           {data.aandachtspunten.map((a, i) => {
             const Icoon = ICOON[a.soort]
             const punt = (
-              <div className="flex gap-3 rounded-xl border border-slate-200 p-4">
+              <div className="aandachtspunt flex gap-3 rounded-xl border border-slate-200 p-4">
                 <Icoon className="mt-0.5 h-5 w-5 flex-shrink-0 text-navy" aria-hidden />
                 <div className="text-sm">
                   <h3 className="font-semibold text-navy">{a.titel}</h3>
@@ -296,7 +322,7 @@ export default function Rapport({ data, voorbeeld = false }: { data: RapportData
                 <div className="mt-5">{punt}</div>
               </div>
             ) : (
-              <div key={a.titel} className="blok mt-3">{punt}</div>
+              <div key={a.titel} className="aandachtspunt-volgend blok mt-3">{punt}</div>
             )
           })}
         </section>

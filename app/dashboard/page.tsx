@@ -11,13 +11,20 @@ export const metadata: Metadata = {
 
 // Funnelstappen zoals de anonieme teller ze registreert (zie migrations/004)
 const FUNNEL_STAPPEN: { stap: string; label: string }[] = [
-  { stap: 'adres',       label: 'Funnel geopend' },
-  { stap: 'scan',        label: 'Adres gekozen' },
-  { stap: 'preview',     label: 'Dak bekeken' },
-  { stap: 'email',       label: 'Bij de e-mailstap' },
-  { stap: 'vragenlijst', label: 'Rapport aangevraagd' },
-  { stap: 'telefoon',    label: 'Bij de telefoonstap' },
-  { stap: 'klaar',       label: 'Belafspraak gevraagd' },
+  { stap: 'adres',              label: 'Funnel geopend' },
+  { stap: 'scan',               label: 'Adres gekozen' },
+  { stap: 'prijs',              label: 'Prijs bekeken' },
+  { stap: 'verfijnen',          label: 'Prijs verfijnen gestart' },
+  { stap: 'vraag_materiaal',    label: '· vraag: materiaal' },
+  { stap: 'vraag_bouwjaar',     label: '· vraag: bouwjaar' },
+  { stap: 'vraag_isolatie',     label: '· vraag: isolatie' },
+  { stap: 'vraag_aansluitingen', label: '· vraag: dakramen en schoorsteen' },
+  { stap: 'vraag_zonnepanelen', label: '· vraag: zonnepanelen' },
+  { stap: 'vraag_woningtype',   label: '· vraag: woningtype' },
+  { stap: 'verfijnd',           label: 'Prijs volledig verfijnd' },
+  { stap: 'email',              label: 'Bij de e-mailstap' },
+  { stap: 'telefoon',           label: 'Rapport aangevraagd' },
+  { stap: 'klaar',              label: 'Belafspraak gevraagd' },
 ]
 
 const statusKleuren: Record<string, string> = {

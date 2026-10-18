@@ -282,7 +282,7 @@ export function inzichten(maten: DakMaten & { zonM2?: number }, a: Antwoorden, p
   const midden = (prijs.min + prijs.max) / 2
   if (a.bouwjaar && a.bouwjaar !== 'na_2015' && a.bouwjaar !== 'onbekend' && midden > 0) {
     const besparing = PRIJSTABEL.btwInbegrepen ? midden * (1 - 1.06 / 1.21) : midden * 0.15
-    uit.push({ titel: '6% btw in plaats van 21%', tekst: `Voor een woning ouder dan tien jaar geldt meestal 6% btw. Dat scheelt ±€${getal(Math.round(besparing / 100) * 100)} op deze werken.` })
+    uit.push({ titel: '6% btw in plaats van 21%', tekst: `Voor een woning ouder dan tien jaar geldt meestal 6% btw. Dat scheelt ongeveer €${getal(Math.round(besparing / 100) * 100)} op deze werken.` })
   }
   if (a.bouwjaar === 'voor_1980' || a.bouwjaar === '1980_2000') {
     uit.push({ titel: 'Mogelijk recht op Mijn VerbouwPremie', tekst: 'Uw woning is van vóór 2006: dakisolatie kan in aanmerking komen. Het bedrag hangt af van uw inkomen.' })
@@ -296,6 +296,11 @@ export function inzichten(maten: DakMaten & { zonM2?: number }, a: Antwoorden, p
   if (a.zonnepanelen === 0 && maten.zonM2 && maten.zonM2 >= 10) {
     const panelen = Math.floor((maten.zonM2 * 0.7) / 1.95)
     if (panelen >= 4) uit.push({ titel: `Ruimte voor ±${panelen} zonnepanelen`, tekst: `Uw dak heeft ±${getal(maten.zonM2)} m² op het zuiden, oosten of westen. Een indicatie; een installateur bepaalt het exacte aantal.` })
+  }
+  if (a.werken?.includes('isolatie') && a.isolatie === 'goed') {
+    uit.push({ titel: 'Isolatie al in orde', tekst: 'Uw dak is goed geïsoleerd: die post valt weg uit uw prijs.' })
+  } else if (a.werken?.includes('isolatie') && a.werken.includes('dakbedekking') && (a.isolatie === 'geen' || a.isolatie === 'beetje')) {
+    uit.push({ titel: 'Isoleren en dakbedekking in één keer', tekst: 'Samen uitgevoerd is er maar één keer een steiger nodig, en kan de isolatie langs buiten: uw zolder blijft vrij.' })
   }
   if (maten.gootlengte && a.werken?.includes('goten')) {
     uit.push({ titel: `±${maten.gootlengte} m dakgoot`, tekst: 'Gemeten uit uw dakscan: de randen waar het dak naartoe afloopt.' })

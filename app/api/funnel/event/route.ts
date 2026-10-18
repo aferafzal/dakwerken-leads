@@ -7,7 +7,8 @@ import { createClient } from '@/lib/supabase/server'
 // Faalt altijd stil: statistiek mag de funnel nooit hinderen.
 const eventSchema = z.object({
   sessionId: z.string().min(8).max(64),
-  stap: z.enum(['adres', 'scan', 'preview', 'email', 'vragenlijst', 'telefoon', 'klaar'] as const),
+  // Stappen van de funnel en de vragen van "Maak mijn prijs nauwkeuriger" (vraag_materiaal, …)
+  stap: z.string().regex(/^(adres|scan|prijs|verfijnen|verfijnd|email|telefoon|klaar|preview|vragenlijst|vraag_[a-z]{3,20})$/),
 })
 
 export async function POST(request: Request) {

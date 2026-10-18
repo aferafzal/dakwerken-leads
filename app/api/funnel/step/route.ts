@@ -49,6 +49,9 @@ export async function POST(request: Request) {
           session_id:      sessionId,
           dak_data:        d.dak_data ?? null,
           ...(d.dakOppervlakte ? { dak_oppervlakte: d.dakOppervlakte } : {}),
+          ...(d.bouwjaar ? { bouwjaar: d.bouwjaar } : {}),
+          ...(d.type_werken?.length ? { type_werken: d.type_werken } : {}),
+          ...(d.lekkage_recent ? { lekkage_recent: d.lekkage_recent } : {}),
         })
         .select('id')
         .single()

@@ -9,7 +9,8 @@ import { naarLambert, naarWgs84 } from '@/lib/lambert'
 import type { Erfgoed } from '@/lib/erfgoed'
 import { ERFGOED_TEKST } from '@/lib/erfgoed-tekst'
 import { DRIE_D_AAN } from '@/lib/instellingen'
-import { kostenVoorDak, type Kostenregel, type SoortWerk } from '@/lib/kosten'
+import { berekenPrijs, inzichten, type Antwoorden, type Inzicht, type Prijsresultaat, type Werk } from '@/lib/prijsmodel'
+import { dakMaten } from '@/lib/dak'
 import { dakwerkenLabels, type FunnelStapVragenlijst } from '@/lib/validations'
 
 export type LeadRow = {
@@ -32,6 +33,8 @@ export type LeadRow = {
     lng?: number
     gebouwen?: { id: string | null; woning: boolean; grondOppervlak?: number; dakOppervlak?: number; dakvorm?: string | null }[]
     erfgoed?: Erfgoed[]
+    antwoorden?: Antwoorden
+    verfijnd?: boolean
     dakscan?: {
       dakvorm: string | null
       helling: number | null
@@ -66,7 +69,9 @@ export type RapportData = {
   gebouwen: RapportGebouw[]
   gemeten: boolean
   metingTekst: string
-  kosten: Kostenregel[]
+  kosten: Prijsresultaat
+  verfijnd: boolean
+  inzichten: Inzicht[]
   aandachtspunten: Aandachtspunt[]
   jaren: { jaar: string; url: string }[]
   streetView: string | null
@@ -214,33 +219,24 @@ export async function maakRapport(lead: LeadRow): Promise<RapportData> {
     ? metScan.reduce((s, g) => s + g.dakOppervlak, 0)
     : lead.dak_oppervlakte ?? dak.oppervlakte ?? null
 
-  // Hellend en plat dak (m²) voor de kosten
-  let hellend = 0
-  let plat = 0
-  if (metScan.length) {
-    for (const g of metScan) {
-      if (g.scan) {
-        for (const v of g.scan.vlakken) {
-          if (v.richting === null) plat += v.dakOppervlak
-          else hellend += v.dakOppervlak
-        }
-        // Verschil tussen som van de vlakken en totaal (exacte omtrek) evenredig verdelen
-        const som = g.scan.vlakken.reduce((s, v) => s + v.dakOppervlak, 0)
-        if (som > 0 && g.scan.dakOppervlak) {
-          const f = g.scan.dakOppervlak / som
-          const h = g.scan.vlakken.filter((v) => v.richting !== null).reduce((s, v) => s + v.dakOppervlak, 0)
-          hellend += h * (f - 1)
-          plat += (som - h) * (f - 1)
-        }
-      } else if (g.dakvorm === 'plat dak') plat += g.dakOppervlak
-      else hellend += g.dakOppervlak
-    }
-  } else if (totaalDak) {
-    const isPlat = (dak.daktype ?? '').toLowerCase().includes('plat')
-    if (isPlat) plat = totaalDak
-    else hellend = totaalDak
+  // Prijs: dezelfde rekenregels als in de funnel, met de antwoorden van de bezoeker (indien gegeven)
+  const maten = metScan.length
+    ? dakMaten(metScan.map((g) => ({ dakOppervlak: g.dakOppervlak, dakvorm: g.dakvorm, scan: g.scan })))
+    : (() => {
+        const isPlat = (dak.daktype ?? '').toLowerCase().includes('plat')
+        return { hellend: isPlat ? 0 : totaalDak ?? 0, plat: isPlat ? totaalDak ?? 0 : 0, nokhoogte: dak.nokhoogte ?? null, gootlengte: null, zonM2: 0 }
+      })()
+  const VAN_TYPE: Record<string, Werk[]> = {
+    pannen: ['dakbedekking'], isolatie: ['isolatie'], plat_dak: ['plat_dak'], dakgoten: ['goten'],
+    lekkage_onderzoek: ['lekkage'], totaalrenovatie: ['dakbedekking', 'isolatie'], advies: ['advies'],
   }
-  const kosten = kostenVoorDak(hellend, plat, (lead.type_werken ?? []) as SoortWerk[])
+  const werkenUitLead = [...new Set((lead.type_werken ?? []).flatMap((t) => VAN_TYPE[t] ?? []))]
+  const antwoorden: Antwoorden = dak.antwoorden ?? {
+    bouwjaar: lead.bouwjaar ?? undefined,
+    werken: werkenUitLead.length ? werkenUitLead : undefined,
+  }
+  const kosten = berekenPrijs(maten, antwoorden)
+  const plat = maten.plat
 
   // Aandachtspunten: enkel wat vaststaat of wat de bezoeker zelf opgaf
   const aandachtspunten: Aandachtspunt[] = []
@@ -311,6 +307,8 @@ export async function maakRapport(lead: LeadRow): Promise<RapportData> {
       : ds?.vlakken ?? [],
     gebouwen: metScan,
     gemeten: metScan.some((g) => g.scan) || !!ds,
+    verfijnd: !!dak.verfijnd,
+    inzichten: inzichten(maten, antwoorden, kosten),
     metingTekst: metScan.some((g) => g.scan) || ds
       ? 'Gemeten met de laserhoogtemeting van de Vlaamse overheid (2013–2015). Sindsdien verbouwd? Dan kan het afwijken; een dakwerker meet ter plaatse na.'
       : opgeslagen.length

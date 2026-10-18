@@ -3,41 +3,37 @@
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Check, CircleCheck } from 'lucide-react'
-import { erfgoedVan, hoofdGebouw } from '@/lib/dak'
+import { dakMaten, erfgoedVan, hoofdGebouw } from '@/lib/dak'
 import { DRIE_D_AAN } from '@/lib/instellingen'
+import { berekenPrijs, gekozenWerken, inzichten, vragenVoor, type Antwoorden, type Vraag, type Werk } from '@/lib/prijsmodel'
 import AdresZoeker from '@/components/AdresZoeker'
+import { PrijsKaart, Vragenstroom, WerkKeuze } from '@/components/PrijsVerfijner'
 import type { DakmetingResultaat } from '@/app/api/dakmeting/route'
 import type { KaartFase, PerceelSelectie } from './DakKaart'
-import {
-  bouwjaarLabels,
-  dakwerkenLabels,
-  lekkageLabels,
-  typeWerkenLabels,
-  isGeldigTelefoon,
-  type FunnelStapVragenlijst,
-} from '@/lib/validations'
+import { isGeldigTelefoon } from '@/lib/validations'
 
-type TypeWerk = NonNullable<FunnelStapVragenlijst['type_werken']>[number]
+// Werken zoals ze in de databank staan (kolom type_werken)
+const WERK_NAAR_TYPE: Record<Werk, 'pannen' | 'isolatie' | 'plat_dak' | 'dakgoten' | 'lekkage_onderzoek' | 'advies'> = {
+  dakbedekking: 'pannen', isolatie: 'isolatie', plat_dak: 'plat_dak', goten: 'dakgoten', lekkage: 'lekkage_onderzoek', advies: 'advies',
+}
 
 const DakKaart = dynamic(() => import('./DakKaart'), { ssr: false })
 
-type Stap = 'adres' | 'scan' | 'preview' | 'email' | 'vragenlijst' | 'telefoon' | 'klaar'
+type Stap = 'adres' | 'scan' | 'prijs' | 'verfijnen' | 'email' | 'telefoon' | 'klaar'
 
 const STAP_LABELS: Record<Stap, string> = {
-  adres:       'Adres',
-  scan:        'Uw dak',
-  preview:     'Uw dak',
-  email:       'Rapport',
-  vragenlijst: 'Rapport aanvullen',
-  telefoon:    'Advies',
-  klaar:       'Klaar',
+  adres:     'Adres',
+  scan:      'Uw dak',
+  prijs:     'Uw prijs',
+  verfijnen: 'Uw prijs',
+  email:     'Rapport',
+  telefoon:  'Advies',
+  klaar:     'Klaar',
 }
 
-const VOORTGANG: Stap[] = ['adres', 'scan', 'preview', 'email', 'vragenlijst', 'telefoon', 'klaar']
-
 // Wat de bezoeker als stappen ziet: 3 stappen tot het rapport (zoals op de homepage),
-// daarna zijn vragenlijst en telefoon optionele extra's.
-const HOOFDSTAP: Partial<Record<Stap, number>> = { adres: 1, scan: 2, preview: 2, email: 3 }
+// het verfijnen van de prijs hoort bij stap 2; de telefoon is een optionele extra.
+const HOOFDSTAP: Partial<Record<Stap, number>> = { adres: 1, scan: 2, prijs: 2, verfijnen: 2, email: 3 }
 const AANTAL_HOOFDSTAPPEN = 3
 
 const BELMOMENT: Record<'direct' | 'vandaag' | 'morgen', string> = {
@@ -64,12 +60,12 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
   const [stap, setStap] = useState<Stap>('adres')
   const [sessionId] = useState(genSessionId)
 
-  // Anonieme stapstatistiek: één keer per stap per sessie, enkel als de funnel open is
-  const gelogd = useRef<Set<Stap>>(new Set())
-  useEffect(() => {
-    if (!zichtbaar || gelogd.current.has(stap)) return
-    gelogd.current.add(stap)
-    const payload = JSON.stringify({ sessionId, stap })
+  // Anonieme stapstatistiek: één keer per stap (of vraag) per sessie, enkel als de funnel open is
+  const gelogd = useRef<Set<string>>(new Set())
+  function log(naam: string) {
+    if (gelogd.current.has(naam)) return
+    gelogd.current.add(naam)
+    const payload = JSON.stringify({ sessionId, stap: naam })
     try {
       if (navigator.sendBeacon) {
         navigator.sendBeacon('/api/funnel/event', new Blob([payload], { type: 'application/json' }))
@@ -77,7 +73,11 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
         void fetch('/api/funnel/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true })
       }
     } catch { /* statistiek is nooit kritiek */ }
-  }, [stap, zichtbaar, sessionId])
+  }
+  useEffect(() => {
+    if (zichtbaar) log(stap)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stap, zichtbaar])
 
   // Adres + scan-data
   const [adresWaarde, setAdresWaarde] = useState('')
@@ -91,15 +91,16 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
   const [emailFout, setEmailFout] = useState<string | null>(null)
   const [bezig, setBezig] = useState(false)
 
-  // Vragenlijst-stap
-  const [bouwjaar, setBouwjaar] = useState<FunnelStapVragenlijst['bouwjaar']>(undefined)
-  const [laatsteWerken, setLaatsteWerken] = useState<FunnelStapVragenlijst['laatste_dakwerken']>(undefined)
-  const [lekkage, setLekkage] = useState<FunnelStapVragenlijst['lekkage_recent']>(undefined)
-  const [typeWerken, setTypeWerken] = useState<TypeWerk[]>([])
+  // Bij een nieuwe stap bovenaan beginnen
+  const paneelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (stap !== 'adres') paneelRef.current?.scrollIntoView({ block: 'start' })
+  }, [stap])
 
-  function toggleTypeWerk(t: TypeWerk) {
-    setTypeWerken((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t])
-  }
+  // Prijs verfijnen: antwoorden van de bezoeker (alles optioneel)
+  const [antwoorden, setAntwoorden] = useState<Antwoorden>({})
+  const [werkKeuze, setWerkKeuze] = useState<Werk[] | null>(null)
+  const [verfijnd, setVerfijnd] = useState(false)
 
   // Telefoon-stap
   const [naam, setNaam] = useState('')
@@ -124,10 +125,25 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
   const nokhoogte = (hoofd?.scan?.meetbaar ? hoofd.scan.nokhoogte : null) ?? hoofd?.hoogte3d?.nokhoogte ?? meting?.hoogte3d?.nokhoogte ?? null
   const daktype = hoofd?.hoogte3d?.gebouwType ?? meting?.hoogte3d?.gebouwType ?? null
 
+  // Prijsmodel: maten uit de dakscan, werken (keuze of standaard per dakvorm) en antwoorden
+  const maten = meetellend?.length
+    ? dakMaten(meetellend)
+    : { hellend: totaalDak ?? 0, plat: 0, nokhoogte, gootlengte: null, zonM2: 0 }
+  const werken = werkKeuze ?? gekozenWerken(maten, {})
+  const prijs = berekenPrijs(maten, { ...antwoorden, werken })
+  const beschikbareWerken: Werk[] = [
+    ...(maten.hellend >= 5 ? (['dakbedekking', 'isolatie'] as Werk[]) : []),
+    ...(maten.plat >= 5 ? (['plat_dak'] as Werk[]) : []),
+    'goten', 'lekkage',
+  ]
+
   async function selecteerAdres(adres: string) {
     setAdresWaarde(adres)
     setMeting(null)
     setPerceelSelectie(null)
+    setAntwoorden({})
+    setWerkKeuze(null)
+    setVerfijnd(false)
     setMetingBezig(true)
     setStap('scan')
     try {
@@ -151,8 +167,8 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
     setPerceelSelectie(data)
   }
 
-  function naarPreview() {
-    setStap('preview')
+  function naarPrijs() {
+    setStap('prijs')
     if (!DRIE_D_AAN) return
 
     // 3D staat uit (lib/instellingen.ts). Aan: het 3D-model wordt op de achtergrond gemaakt voor het rapport.
@@ -197,7 +213,13 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
             adres: adresWaarde,
             gemeente: meting?.gemeente ?? perceelSelectie?.gemeente ?? undefined,
             dakOppervlakte: totaalDak ?? undefined,
+            bouwjaar: antwoorden.bouwjaar,
+            type_werken: werken.map((w) => WERK_NAAR_TYPE[w]),
+            lekkage_recent: werken.includes('lekkage') ? 'ja' : undefined,
             dak_data: {
+              antwoorden: { ...antwoorden, werken },
+              verfijnd,
+              prijs: { min: prijs.min, max: prijs.max, nauwkeurigheid: prijs.nauwkeurigheid, regels: prijs.regels.map((r) => ({ werk: r.werk, naam: r.naam, min: r.min, max: r.max })) },
               capakey: perceelSelectie?.capakey ?? meting?.capakey,
               perceelnummer: perceelSelectie?.perceelnummer ?? meting?.perceelnummer,
               oppervlakte: totaalDak,
@@ -226,34 +248,12 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
         }),
       })
       if (!res.ok) throw new Error('Submit mislukt')
-      setStap('vragenlijst')
+      setStap('telefoon')
     } catch {
       setEmailFout('Uw rapport kon niet verstuurd worden. Controleer uw internetverbinding en probeer het opnieuw.')
     } finally {
       setBezig(false)
     }
-  }
-
-  // ── API: Vragenlijst-stap (status='engaged') ────────────────────
-  async function submitVragenlijst() {
-    setBezig(true)
-    try {
-      await fetch('/api/funnel/step', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          stap: 'vragenlijst',
-          sessionId,
-          data: { bouwjaar, laatste_dakwerken: laatsteWerken, lekkage_recent: lekkage, type_werken: typeWerken.length ? typeWerken : undefined },
-        }),
-      })
-    } catch { /* niet kritiek */ }
-    setBezig(false)
-    setStap('telefoon')
-  }
-
-  function slaVragenlijstOver() {
-    setStap('telefoon')
   }
 
   // ── API: Telefoon-stap (status='hot') ───────────────────────────
@@ -288,16 +288,15 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
   }
 
   // ── UI ──────────────────────────────────────────────────────────
-  const stapIndex = VOORTGANG.indexOf(stap)
   const hoofdstap = HOOFDSTAP[stap]
   const voortgang = hoofdstap ? (hoofdstap / AANTAL_HOOFDSTAPPEN) * 100 : 100
   const voortgangLabel = hoofdstap
     ? `Stap ${hoofdstap} van ${AANTAL_HOOFDSTAPPEN}`
     : stap === 'klaar' ? 'Klaar' : 'Extra · optioneel'
 
-  // Terug-knop: gaat één stap terug, behalve op 'adres' en 'klaar'
-  const vorigeStap: Stap | null =
-    stap === 'adres' || stap === 'klaar' ? null : VOORTGANG[stapIndex - 1] ?? null
+  // Terug-knop. Na het versturen van het rapport (telefoon, klaar) niet meer terug naar het formulier.
+  const VORIGE: Partial<Record<Stap, Stap>> = { scan: 'adres', prijs: 'scan', verfijnen: 'prijs', email: verfijnd ? 'verfijnen' : 'prijs' }
+  const vorigeStap: Stap | null = VORIGE[stap] ?? null
 
   function gaTerug() {
     if (vorigeStap) setStap(vorigeStap)
@@ -305,7 +304,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
 
 
   return (
-    <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-2xl">
+    <div ref={paneelRef} className="w-full max-w-2xl mx-auto scroll-mt-8 bg-white rounded-2xl shadow-2xl">
       {/* Voortgangsbalk + terug-knop */}
       <div className="pl-5 pr-14 pt-5 pb-3 border-b border-gray-100">
         <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
@@ -398,70 +397,84 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
                 ← Ander adres
               </button>
               <button
-                onClick={naarPreview}
+                onClick={naarPrijs}
                 disabled={!scanKlaar}
                 className="flex-1 rounded-lg bg-amber px-4 py-3 text-sm font-bold text-navy hover:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed transition-[filter]"
               >
-                {scanKlaar ? `Bekijk resultaat (±${totaalDak} m²) →` : kaartFase === 'leeg' ? 'Tik eerst op uw dak' : 'Uw dak wordt gemeten…'}
+                {scanKlaar ? 'Bekijk wat het kost →' : kaartFase === 'leeg' ? 'Tik eerst op uw dak' : 'Uw dak wordt gemeten…'}
               </button>
             </div>
           </div>
         )}
 
-        {/* ─── Stap 3 — Preview ─── */}
-        {stap === 'preview' && (
+        {/* ─── Stap 3 — Prijs ─── */}
+        {stap === 'prijs' && (
           <div className="space-y-5">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Uw dak in cijfers</h2>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-navy text-white p-4">
-                <p className="text-xs uppercase tracking-wider opacity-75 mb-1">Dakoppervlakte</p>
-                <p className="text-2xl font-bold">±{totaalDak} m²</p>
-                {aantalGebouwen > 1 && (
-                  <p className="text-xs opacity-75 mt-0.5">{aantalGebouwen} gebouwen</p>
-                )}
-              </div>
-              <div className="rounded-xl bg-gray-50 border border-gray-200 p-4">
-                <p className="text-xs uppercase tracking-wider text-gray-500 mb-1">Nokhoogte</p>
-                <p className="text-2xl font-bold text-gray-900">{nokhoogte ? `${Number(nokhoogte).toLocaleString('nl-BE')} m` : 'Onbekend'}</p>
-              </div>
-            </div>
-
-            <div className="rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-4">
-              <p className="text-sm font-semibold text-amber-900 mb-1">In uw volledige rapport</p>
-              <p className="text-xs text-amber-800">
-                Een kostenindicatie, mogelijke premies, aandachtspunten voor uw dak en een vergelijking met de buurt.
-                We sturen het naar uw e-mailadres, zodat u het later terugvindt.
+              <h2 className="text-xl font-bold text-navy">Wat kost uw dak?</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Berekend uit uw gemeten dak ({totaalDak ? `±${totaalDak.toLocaleString('nl-BE')} m²` : 'oppervlakte'}) en gangbare prijzen.
               </p>
             </div>
 
-            <button
-              onClick={() => setStap('email')}
-              className="w-full rounded-lg bg-amber px-4 py-3.5 text-sm font-bold text-navy hover:brightness-95 transition-[filter]"
-            >
-              Stuur mij het volledige rapport
-            </button>
+            <WerkKeuze gekozen={werken} beschikbaar={beschikbareWerken} onChange={setWerkKeuze} />
 
-            <button
-              onClick={() => setStap('scan')}
-              className="w-full text-xs text-gray-500 hover:text-gray-700"
-            >
-              ← Andere woning kiezen
-            </button>
+            <PrijsKaart prijs={prijs} titel={werken.length > 1 ? 'Samen, indicatief' : `${prijs.regels[0]?.naam ?? 'Uw dak'}, indicatief`} metRegels />
+
+            <div className="space-y-2">
+              <button
+                onClick={() => setStap('verfijnen')}
+                className="w-full rounded-xl bg-amber px-4 py-3.5 font-bold text-navy transition-[filter] hover:brightness-95"
+              >
+                Maak mijn prijs nauwkeuriger
+                <span className="block text-xs font-semibold text-navy/75">{`${vragenVoor(werken).length} korte vragen · ±1 minuut`}</span>
+              </button>
+              <button
+                onClick={() => setStap('email')}
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-navy transition-colors hover:border-navy"
+              >
+                Stuur mij het algemene rapport
+              </button>
+            </div>
           </div>
+        )}
+
+        {/* ─── Stap 3b — Prijs verfijnen (optioneel, vóór het e-mailadres) ─── */}
+        {stap === 'verfijnen' && (
+          <Vragenstroom
+            maten={maten}
+            werken={werken}
+            antwoorden={antwoorden}
+            onAntwoord={setAntwoorden}
+            onVraag={(v: Vraag) => log(`vraag_${v}`)}
+            onKlaar={() => { setVerfijnd(true); log('verfijnd'); setStap('email') }}
+          />
         )}
 
         {/* ─── Stap 4 — Email ─── */}
         {stap === 'email' && (
           <form onSubmit={submitEmail} className="space-y-4">
+            <PrijsKaart prijs={prijs} titel={verfijnd ? 'Uw persoonlijke prijs' : 'Uw prijsindicatie'} compact />
+
             <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Waar mogen we uw rapport sturen?</h2>
-              <p className="text-sm text-gray-600">
-                U krijgt meteen een e-mail met de link naar uw rapport.
+              <h2 className="text-xl font-bold text-navy mb-1">
+                {verfijnd ? 'Bewaar uw prijs en ontvang uw rapport' : 'Waar mogen we uw rapport sturen?'}
+              </h2>
+              <p className="text-sm text-slate-600">
+                U krijgt meteen een e-mail met de link naar uw rapport{verfijnd ? ', met uw persoonlijke prijs en alle details' : ''}.
               </p>
             </div>
+
+            {verfijnd && inzichten(maten, { ...antwoorden, werken }, prijs).length > 0 && (
+              <ul className="space-y-1.5 text-sm text-navy">
+                {inzichten(maten, { ...antwoorden, werken }, prijs).map((i) => (
+                  <li key={i.titel} className="flex gap-2">
+                    <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber" aria-hidden />
+                    {i.titel}
+                  </li>
+                ))}
+              </ul>
+            )}
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
@@ -504,130 +517,13 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
           </form>
         )}
 
-        {/* ─── Stap 5 — Vragenlijst (optioneel) ─── */}
-        {stap === 'vragenlijst' && (
-          <div className="space-y-5">
-            <div>
-              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-navy bg-slate-100 px-2.5 py-1 rounded-full mb-3">
-                <Check className="h-3.5 w-3.5" aria-hidden />
-                Rapport verstuurd
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Maak uw rapport persoonlijker</h2>
-              <p className="text-sm text-gray-600">
-                Vier korte vragen. Uw rapport krijgt dan aandachtspunten voor uw woning. Helemaal optioneel.
-              </p>
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Wanneer is uw woning gebouwd?</p>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(bouwjaarLabels).map(([val, label]) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setBouwjaar(val as FunnelStapVragenlijst['bouwjaar'])}
-                    className={`text-sm py-2.5 px-3 rounded-lg border transition-colors ${
-                      bouwjaar === val
-                        ? 'border-amber bg-orange-50 text-navy font-semibold'
-                        : 'border-gray-200 text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Wanneer zijn de laatste dakwerken?</p>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(dakwerkenLabels).map(([val, label]) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setLaatsteWerken(val as FunnelStapVragenlijst['laatste_dakwerken'])}
-                    className={`text-sm py-2.5 px-3 rounded-lg border transition-colors ${
-                      laatsteWerken === val
-                        ? 'border-amber bg-orange-50 text-navy font-semibold'
-                        : 'border-gray-200 text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Recente lekkage of vochtproblemen?</p>
-              <div className="grid grid-cols-3 gap-2">
-                {Object.entries(lekkageLabels).map(([val, label]) => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setLekkage(val as FunnelStapVragenlijst['lekkage_recent'])}
-                    className={`text-sm py-2.5 px-3 rounded-lg border transition-colors ${
-                      lekkage === val
-                        ? 'border-amber bg-orange-50 text-navy font-semibold'
-                        : 'border-gray-200 text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-gray-700 mb-1">Welke werken overweegt u?</p>
-              <p className="text-xs text-gray-500 mb-2">Meerdere mogelijk — helpt ons het juiste advies te geven.</p>
-              <div className="grid grid-cols-1 gap-2">
-                {(Object.entries(typeWerkenLabels) as [TypeWerk, string][]).map(([val, label]) => {
-                  const checked = typeWerken.includes(val)
-                  return (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => toggleTypeWerk(val)}
-                      className={`text-sm py-2.5 px-3 rounded-lg border text-left transition-colors flex items-center gap-2 ${
-                        checked
-                          ? 'border-amber bg-orange-50 text-navy font-semibold'
-                          : 'border-gray-200 text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <span className={`inline-block w-4 h-4 rounded border-2 flex-shrink-0 ${checked ? 'bg-navy border-navy' : 'border-gray-300'}`}>
-                        {checked && (
-                          <svg viewBox="0 0 20 20" fill="white" className="w-full h-full"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
-                        )}
-                      </span>
-                      {label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                onClick={slaVragenlijstOver}
-                className="flex-1 rounded-lg border border-gray-200 px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                Sla over
-              </button>
-              <button
-                onClick={submitVragenlijst}
-                disabled={bezig}
-                className="flex-1 rounded-lg bg-amber px-4 py-3 text-sm font-bold text-navy hover:brightness-95 disabled:opacity-60 transition-[filter]"
-              >
-                {bezig ? 'Bezig…' : 'Vul mijn rapport aan →'}
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* ─── Stap 6 — Telefoon ─── */}
         {stap === 'telefoon' && (
           <form onSubmit={submitTelefoon} className="space-y-4">
+            <p role="status" className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm text-navy">
+              <Check className="h-4 w-4 flex-shrink-0 text-amber" aria-hidden />
+              Uw rapport is onderweg naar {email}.
+            </p>
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">Uw rapport bespreken met een dakwerker?</h2>
               <p className="text-sm text-gray-600">
@@ -706,6 +602,15 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
               We geven uw naam en nummer door aan een dakwerker uit ons netwerk, zodat die u kan bellen.
               Meer daarover in de <a href="/privacy" className="underline underline-offset-2">privacyverklaring</a>.
             </p>
+
+            <a
+              href={`/rapport/${sessionId}`}
+              target="_blank"
+              rel="noopener"
+              className="block min-h-11 text-center text-sm font-semibold text-navy underline underline-offset-2"
+            >
+              Liever niet gebeld? Bekijk meteen uw rapport
+            </a>
           </form>
         )}
 

@@ -27,7 +27,13 @@ export default async function VoorbeeldRapport({ searchParams }: { searchParams:
     type_werken: ['isolatie'],
     dak_data: oud
       ? { lat: 51.184449, lng: 3.56538, oppervlakte: 119, nokhoogte: 13.34, daktype: 'hoofdgebouw' }
-      : { lat: 51.184449, lng: 3.56538, gebouwen: [{ id: '18083924', woning: true }] },
+      : {
+          lat: 51.184449,
+          lng: 3.56538,
+          gebouwen: [{ id: '18083924', woning: true }],
+          verfijnd: true,
+          antwoorden: { werken: ['dakbedekking', 'isolatie'], materiaal: 'keramische_pannen', bouwjaar: '1980_2000', isolatie: 'beetje', dakramen: 2, dakkapellen: 0, schoorstenen: 1, zonnepanelen: 0, woningtype: 'rij' },
+        },
     created_at: new Date().toISOString(),
   }
 

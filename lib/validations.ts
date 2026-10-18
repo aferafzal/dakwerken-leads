@@ -48,6 +48,10 @@ export const funnelStapEmail = z.object({
   gemeente: z.string().optional(),
   dakOppervlakte: z.number().int().positive().optional(),
   dak_data: z.unknown().optional(),
+  // Antwoorden uit "Maak mijn prijs nauwkeuriger" (vóór het e-mailadres), allemaal optioneel
+  bouwjaar: z.enum(['voor_1980', '1980_2000', '2000_2015', 'na_2015', 'onbekend']).optional(),
+  type_werken: z.array(z.enum(['pannen', 'isolatie', 'plat_dak', 'dakgoten', 'lekkage_onderzoek', 'totaalrenovatie', 'advies'])).optional(),
+  lekkage_recent: z.enum(['ja', 'nee', 'niet_zeker']).optional(),
 })
 
 /** Stap 2 — Optionele vragenlijst → status 'engaged' */
