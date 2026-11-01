@@ -228,7 +228,7 @@ export default function HomePageContent() {
 
       {/* ════════════════════════════════════════════════════
           IN DRIE STAPPEN — met de demovideo van de echte tool
-          (scripts/demo-opname.ts + scripts/render-demo.ts)
+          (promofilmpje: scripts/promo-opname.ts + scripts/render-promo.ts)
       ════════════════════════════════════════════════════ */}
       <section id="hoe-werkt" className="bg-white px-4 py-24 sm:px-6 sm:py-28 lg:px-8">
         <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -257,7 +257,7 @@ export default function HomePageContent() {
               ref={demoVideo}
               className="aspect-video w-full rounded-2xl shadow-xl"
               style={{ background: NAVY }}
-              poster={demoDichtbij ? '/demo-poster.jpg' : undefined}
+              poster={demoDichtbij ? '/promo-poster.jpg' : undefined}
               muted
               loop
               playsInline
@@ -265,9 +265,9 @@ export default function HomePageContent() {
               onPlay={() => setDemoSpeelt(true)}
               onPause={() => setDemoSpeelt(false)}
               onClick={toggleDemo}
-              aria-label="Demo van 25 seconden: adres typen, dak aanduiden op de kaart, oppervlakte zien en het rapport ontvangen"
+              aria-label="Filmpje van 35 seconden: adres typen, uw dak gemeten zien, kiezen wat u wilt laten doen, de prijs zien en het rapport ontvangen"
             >
-              <source src="/demo.mp4" type="video/mp4" />
+              <source src="/promo.mp4" type="video/mp4" />
             </video>
             <button
               type="button"
