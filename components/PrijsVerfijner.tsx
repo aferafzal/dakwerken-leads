@@ -1,18 +1,22 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Check, HelpCircle, Info, Minus, Plus } from 'lucide-react'
+import { Check, ChevronRight, HelpCircle, Info, Minus, Plus } from 'lucide-react'
 import {
   berekenPrijs,
+  doelMogelijk,
   inzichten,
   vragenVoor,
   type Antwoorden,
   type DakMaten,
+  type Doel,
   type Inzicht,
   type Materiaal,
   type Prijsresultaat,
   type Vraag,
   type Werk,
+  DOEL,
+  DOEL_GROEPEN,
   WERK_LABEL,
 } from '@/lib/prijsmodel'
 import DakDoorsnede from '@/components/DakDoorsnede'
@@ -48,16 +52,19 @@ function useTelOp(doel: number, duur = 550): number {
 
 // ─── Prijs met nauwkeurigheidsmeter ────────────────────────────────
 
-export function PrijsKaart({ prijs, titel, metRegels = false, winst = 0, compact = false }: {
+export function PrijsKaart({ prijs, titel, metRegels = false, winst = 0, compact = false, meter = true }: {
   prijs: Prijsresultaat
   titel: string
   metRegels?: boolean
   winst?: number
   compact?: boolean
+  // Uit bij een herstelling of lek: die prijs wordt online niet scherper
+  meter?: boolean
 }) {
   const min = useTelOp(prijs.min)
   const max = useTelOp(prijs.max)
   const zekerheid = useTelOp(prijs.zekerheid)
+  const posten = prijs.regels.flatMap((r) => r.posten.filter((p) => p.max > 0))
   return (
     <div className={`rounded-2xl bg-navy text-white ${compact ? 'p-4' : 'p-5 sm:p-6'}`}>
       <p className="text-sm text-white/75">{titel}</p>
@@ -65,8 +72,11 @@ export function PrijsKaart({ prijs, titel, metRegels = false, winst = 0, compact
         {euro(Math.round(min / 100) * 100)} – {euro(Math.round(max / 100) * 100)}
       </p>
       <p className="text-xs text-white/60">{prijs.btwInbegrepen ? 'incl. btw' : 'excl. btw'} · indicatief</p>
+      {metRegels && prijs.regels.length === 1 && (
+        <p className="mt-3 text-sm text-white/80">{prijs.regels[0].uitleg}</p>
+      )}
 
-      <div className="mt-4">
+      {meter && <div className="mt-4">
         <div className="flex items-baseline justify-between text-sm">
           <span className="font-semibold">Nauwkeurigheid</span>
           <span className="flex items-baseline gap-2 tabular-nums">
@@ -89,7 +99,7 @@ export function PrijsKaart({ prijs, titel, metRegels = false, winst = 0, compact
         >
           <div className="h-full rounded-full bg-amber" style={{ width: `${zekerheid}%` }} />
         </div>
-      </div>
+      </div>}
 
       {metRegels && prijs.regels.length > 1 && (
         <ul className="mt-5 space-y-2 border-t border-white/15 pt-4 text-sm">
@@ -104,6 +114,18 @@ export function PrijsKaart({ prijs, titel, metRegels = false, winst = 0, compact
           ))}
         </ul>
       )}
+
+      {metRegels && posten.length > 1 && (
+        <details className="mt-4 border-t border-white/15 pt-3 text-sm">
+          <summary className="min-h-11 cursor-pointer content-center font-semibold">Wat zit er in deze prijs?</summary>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-white/80">
+            {posten.map((p, i) => <li key={i}>{p.naam}</li>)}
+          </ul>
+          {posten.some((p) => p.min === 0) && (
+            <p className="mt-2 text-xs text-white/60">Wat &ldquo;mogelijk&rdquo; nodig is, telt alleen mee in de hoogste prijs. De dakwerker bekijkt het ter plaatse.</p>
+          )}
+        </details>
+      )}
       <style jsx>{`
         @media (prefers-reduced-motion: no-preference) {
           .meter-winst { animation: winst-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both; }
@@ -117,30 +139,94 @@ export function PrijsKaart({ prijs, titel, metRegels = false, winst = 0, compact
   )
 }
 
-// ─── Welke werken? ─────────────────────────────────────────────────
+// ─── Wat wilt u laten doen? ────────────────────────────────────────
 
-export function WerkKeuze({ gekozen, beschikbaar, onChange }: { gekozen: Werk[]; beschikbaar: Werk[]; onChange: (w: Werk[]) => void }) {
+const chipKlasse = (aan: boolean) =>
+  `inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-sm font-semibold transition-colors ${
+    aan ? 'border-navy bg-navy text-white' : 'border-slate-300 text-navy hover:border-navy'
+  }`
+
+/** Groot in de funnel (een keuze brengt u verder), compact als knoppen in het rapport */
+export function DoelKeuze({ maten, gekozen, onKies, compact = false }: {
+  maten: DakMaten
+  gekozen: Doel | null
+  onKies: (d: Doel) => void
+  compact?: boolean
+}) {
+  const alleenPlat = maten.hellend < 5
+  const mogelijk = (d: Doel) => doelMogelijk(d, maten)
+
+  if (compact) {
+    return (
+      <fieldset>
+        <legend className="text-sm font-semibold text-navy">Wat wilt u laten doen?</legend>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {DOEL_GROEPEN.flatMap((g) => g.doelen).filter(mogelijk).map((d) => (
+            <button key={d} type="button" aria-pressed={gekozen === d} onClick={() => onKies(d)} className={chipKlasse(gekozen === d)}>
+              {gekozen === d && <Check className="h-4 w-4" aria-hidden />}
+              {DOEL[d].titel}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      {DOEL_GROEPEN.map((g) => {
+        const doelen = g.doelen.filter(mogelijk)
+        if (!doelen.length) return null
+        return (
+          <fieldset key={g.titel}>
+            <legend className="text-xs font-semibold uppercase tracking-wider text-slate-600">{g.titel}</legend>
+            <div className="mt-2 space-y-2">
+              {doelen.map((d) => {
+                const aan = gekozen === d
+                return (
+                  <button key={d} type="button" aria-pressed={aan} onClick={() => onKies(d)}
+                    className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                      aan ? 'border-amber bg-orange-50 ring-1 ring-amber' : 'border-slate-200 hover:border-slate-400'
+                    }`}>
+                    <span>
+                      <span className="block text-[15px] font-semibold text-navy">{DOEL[d].titel}</span>
+                      <span className="mt-0.5 block text-sm text-slate-600">{(alleenPlat && DOEL[d].uitlegPlat) || DOEL[d].uitleg}</span>
+                    </span>
+                    {aan
+                      ? <Check className="h-5 w-5 flex-shrink-0 text-amber" aria-hidden />
+                      : <ChevronRight className="h-5 w-5 flex-shrink-0 text-slate-400" aria-hidden />}
+                  </button>
+                )
+              })}
+            </div>
+          </fieldset>
+        )
+      })}
+    </div>
+  )
+}
+
+const EXTRA_LABEL: Partial<Record<Werk, string>> = {
+  isolatie: 'Isolatie (langs buiten)',
+  goten: 'Dakgoten',
+  plat_dak: 'Plat dak',
+  dakbedekking: 'Hellend dak',
+}
+
+/** Wat er bij het gekozen werk nog mee kan */
+export function ExtraKeuze({ opties, gekozen, onChange }: { opties: Werk[]; gekozen: Werk[]; onChange: (w: Werk[]) => void }) {
+  if (!opties.length) return null
   return (
     <fieldset>
-      <legend className="text-sm font-semibold text-navy">Waarvoor wilt u een prijs?</legend>
+      <legend className="text-sm font-semibold text-navy">Meteen mee laten doen?</legend>
       <div className="mt-2 flex flex-wrap gap-2">
-        {beschikbaar.map((w) => {
+        {opties.map((w) => {
           const aan = gekozen.includes(w)
           return (
-            <button
-              key={w}
-              type="button"
-              aria-pressed={aan}
-              onClick={() => {
-                const nieuw = aan ? gekozen.filter((x) => x !== w) : [...gekozen, w]
-                if (nieuw.length) onChange(nieuw)
-              }}
-              className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-sm font-semibold transition-colors ${
-                aan ? 'border-navy bg-navy text-white' : 'border-slate-300 text-navy hover:border-navy'
-              }`}
-            >
-              {aan && <Check className="h-4 w-4" aria-hidden />}
-              {WERK_LABEL[w]}
+            <button key={w} type="button" aria-pressed={aan} className={chipKlasse(aan)}
+              onClick={() => onChange(aan ? gekozen.filter((x) => x !== w) : [...gekozen, w])}>
+              {aan ? <Check className="h-4 w-4" aria-hidden /> : <Plus className="h-4 w-4" aria-hidden />}
+              {EXTRA_LABEL[w] ?? WERK_LABEL[w]}
             </button>
           )
         })}
@@ -152,6 +238,7 @@ export function WerkKeuze({ gekozen, beschikbaar, onChange }: { gekozen: Werk[];
 // ─── De vragen ─────────────────────────────────────────────────────
 
 const TEKST: Record<Vraag, { titel: string; waarom: string }> = {
+  houtwerk: { titel: 'Hoe is het houtwerk van uw dak?', waarom: 'Moeten de kepers en gordingen mee vervangen worden, dan kost een nieuw dak flink meer.' },
   materiaal: { titel: 'Wat ligt er nu op uw dak?', waarom: 'Elk materiaal heeft een andere prijs. Kunstleien en golfplaten van vóór 2001 kunnen asbest bevatten.' },
   bouwjaar: { titel: 'Wanneer is uw woning gebouwd?', waarom: 'Belangrijk voor de btw, premies en asbest.' },
   isolatie: { titel: 'Is uw dak nu geïsoleerd?', waarom: 'Bepaalt of er isolatie nodig is, en hoeveel.' },
@@ -179,6 +266,11 @@ const MATERIALEN_PLAT: Optie<Materiaal>[] = [
 ]
 
 const KEUZES: Partial<Record<Vraag, Optie<string>[]>> = {
+  houtwerk: [
+    { waarde: 'goed', label: 'In goede staat' },
+    { waarde: 'slecht', label: 'Rot, houtworm of het dak buigt door' },
+    { waarde: 'weet_niet', label: 'Weet ik niet' },
+  ],
   bouwjaar: [
     { waarde: 'voor_1980', label: 'Vóór 1980' },
     { waarde: '1980_2000', label: '1980 – 2000' },
@@ -218,7 +310,7 @@ const KEUZES: Partial<Record<Vraag, Optie<string>[]>> = {
 }
 
 const SLEUTEL: Partial<Record<Vraag, keyof Antwoorden>> = {
-  materiaal: 'materiaal', bouwjaar: 'bouwjaar', isolatie: 'isolatie', zolder: 'zolder',
+  houtwerk: 'houtwerk', materiaal: 'materiaal', bouwjaar: 'bouwjaar', isolatie: 'isolatie', zolder: 'zolder',
   woningtype: 'woningtype', goot: 'goot', start: 'start',
 }
 
@@ -249,7 +341,7 @@ export function Vragenstroom({ maten, werken, antwoorden, onAntwoord, onVraag, o
   onVraag?: (v: Vraag) => void
   onKlaar: () => void
 }) {
-  const vragen = vragenVoor(werken)
+  const vragen = vragenVoor(werken, antwoorden.doel)
   const [index, setIndex] = useState(0)
   const [fase, setFase] = useState<'kiezen' | 'feedback'>('kiezen')
   const [winst, setWinst] = useState(0)
@@ -264,8 +356,8 @@ export function Vragenstroom({ maten, werken, antwoorden, onAntwoord, onVraag, o
     bovenRef.current?.scrollIntoView({ block: 'start' })
   }, [index])
 
-  // De doorsnede alvast laden, zodat ze er meteen staat bij de isolatievraag
-  const metDoorsnede = werken.includes('isolatie')
+  // De doorsnede alvast laden, zodat ze er meteen staat bij de vraag over isolatie of houtwerk
+  const metDoorsnede = werken.includes('isolatie') || vragen.includes('houtwerk')
   useEffect(() => {
     if (metDoorsnede) new Image().src = '/doorsnede-dak.jpg'
   }, [metDoorsnede])
@@ -311,7 +403,9 @@ export function Vragenstroom({ maten, werken, antwoorden, onAntwoord, onVraag, o
       aan ? 'border-amber bg-orange-50 text-navy ring-1 ring-amber' : 'border-slate-200 text-navy hover:border-slate-400'
     }`
 
-  const materialen = maten.hellend >= maten.plat ? MATERIALEN_HELLEND : MATERIALEN_PLAT
+  // Materialen van het dak waaraan gewerkt wordt; bij beide de grootste
+  const platMateriaal = werken.includes('plat_dak') && (!werken.includes('dakbedekking') || maten.plat > maten.hellend)
+  const materialen = platMateriaal ? MATERIALEN_PLAT : MATERIALEN_HELLEND
 
   return (
     <div ref={bovenRef} className="scroll-mt-4 space-y-5">
@@ -344,7 +438,17 @@ export function Vragenstroom({ maten, werken, antwoorden, onAntwoord, onVraag, o
         </p>
       </div>
 
-      {vraag === 'isolatie' && metDoorsnede && (
+      {vraag === 'houtwerk' && (
+        <div>
+          <DakDoorsnede nadruk={['kepers']} klein />
+          <p className="mt-3 text-sm text-slate-700">
+            <span className="font-semibold text-navy">Kijk op zolder naar de kepers (6).</span> Donkere vochtplekken, zacht of
+            brokkelig hout, kleine gaatjes met houtmeel of een dak dat zichtbaar doorbuigt? Dan moet het houtwerk waarschijnlijk mee vervangen worden.
+          </p>
+        </div>
+      )}
+
+      {vraag === 'isolatie' && werken.includes('isolatie') && (
         <div>
           <DakDoorsnede nadruk={['isolatie']} klein />
           <p className="mt-3 text-sm text-slate-700">

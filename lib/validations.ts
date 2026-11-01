@@ -50,7 +50,7 @@ export const funnelStapEmail = z.object({
   dak_data: z.unknown().optional(),
   // Antwoorden uit "Maak mijn prijs nauwkeuriger" (vóór het e-mailadres), allemaal optioneel
   bouwjaar: z.enum(['voor_1980', '1980_2000', '2000_2015', 'na_2015', 'onbekend']).optional(),
-  type_werken: z.array(z.enum(['pannen', 'isolatie', 'plat_dak', 'dakgoten', 'lekkage_onderzoek', 'totaalrenovatie', 'advies'])).optional(),
+  type_werken: z.array(z.enum(['pannen', 'isolatie', 'plat_dak', 'dakgoten', 'lekkage_onderzoek', 'herstelling', 'totaalrenovatie', 'advies'])).optional(),
   lekkage_recent: z.enum(['ja', 'nee', 'niet_zeker']).optional(),
 })
 
@@ -61,7 +61,7 @@ export const funnelStapVragenlijst = z.object({
   lekkage_recent: z.enum(['ja', 'nee', 'niet_zeker']).optional(),
   type_werken: z.array(z.enum([
     'pannen', 'isolatie', 'plat_dak', 'dakgoten',
-    'lekkage_onderzoek', 'totaalrenovatie', 'advies',
+    'lekkage_onderzoek', 'herstelling', 'totaalrenovatie', 'advies',
   ])).optional(),
 })
 
@@ -108,6 +108,7 @@ export const typeWerkenLabels: Record<NonNullable<FunnelStapVragenlijst['type_we
   plat_dak:          'Plat dak vernieuwen (EPDM/roofing)',
   dakgoten:          'Dakgoten onderhoud/vervanging',
   lekkage_onderzoek: 'Lekkage onderzoeken',
+  herstelling:       'Herstelling',
   totaalrenovatie:   'Volledige dakrenovatie',
   advies:            'Nog niet zeker, eerst advies',
 }

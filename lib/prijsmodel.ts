@@ -8,7 +8,7 @@
  * PRIJSTABEL: voorstel op basis van publieke Belgische richtprijzen (2026), na te kijken door Afer.
  */
 
-export type Werk = 'dakbedekking' | 'isolatie' | 'plat_dak' | 'goten' | 'lekkage' | 'advies'
+export type Werk = 'dakbedekking' | 'isolatie' | 'plat_dak' | 'goten' | 'lekkage' | 'herstelling' | 'advies'
 
 export const WERK_LABEL: Record<Werk, string> = {
   dakbedekking: 'Dakbedekking vernieuwen',
@@ -16,8 +16,29 @@ export const WERK_LABEL: Record<Werk, string> = {
   plat_dak: 'Plat dak vernieuwen',
   goten: 'Dakgoten',
   lekkage: 'Lekkage',
+  herstelling: 'Herstelling',
   advies: 'Advies',
 }
+
+/** Wat de bezoeker wil laten doen: de eerste vraag na de dakscan, vóór er een bedrag staat */
+export type Doel = 'lek' | 'herstelling' | 'dakbedekking' | 'volledig' | 'plat_dak' | 'isolatie' | 'goten' | 'weet_niet'
+
+export const DOEL: Record<Doel, { titel: string; uitleg: string; uitlegPlat?: string }> = {
+  lek: { titel: 'Mijn dak lekt', uitleg: 'De oorzaak zoeken en het lek herstellen.' },
+  herstelling: { titel: 'Een herstelling', uitleg: 'Losse of kapotte pannen, de nok, een aansluiting of de dakrand.', uitlegPlat: 'Een scheur, de dakrand of een afvoer.' },
+  dakbedekking: { titel: 'Nieuwe dakbedekking', uitleg: 'Nieuwe pannen of leien, latten en onderdak. Het houtwerk blijft.' },
+  volledig: { titel: 'Volledig nieuw dak', uitleg: 'Ook het houtwerk (kepers en gordingen) wordt vervangen.' },
+  plat_dak: { titel: 'Plat dak vernieuwen', uitleg: 'Nieuwe dakbedekking op het platte dak.' },
+  isolatie: { titel: 'Alleen isoleren', uitleg: 'Het dak isoleren. De pannen blijven liggen.' },
+  goten: { titel: 'Alleen de dakgoten', uitleg: 'Dakgoten vervangen.' },
+  weet_niet: { titel: 'Ik weet het nog niet', uitleg: 'U ziet een ruime prijs. Een dakwerker zegt u wat nodig is.' },
+}
+
+export const DOEL_GROEPEN: { titel: string; doelen: Doel[] }[] = [
+  { titel: 'Herstellen', doelen: ['lek', 'herstelling'] },
+  { titel: 'Vernieuwen', doelen: ['dakbedekking', 'volledig', 'plat_dak'] },
+  { titel: 'Iets anders', doelen: ['isolatie', 'goten', 'weet_niet'] },
+]
 
 export type Materiaal = 'betonpannen' | 'keramische_pannen' | 'natuurleien' | 'kunstleien' | 'golfplaten' | 'epdm' | 'roofing' | 'zink' | 'weet_niet'
 export type Bouwjaar = 'voor_1980' | '1980_2000' | '2000_2015' | 'na_2015' | 'onbekend'
@@ -26,9 +47,12 @@ export type Zolder = 'bewoond' | 'niet_bewoond' | 'weet_niet'
 export type Woningtype = 'vrijstaand' | 'halfopen' | 'rij' | 'weet_niet'
 export type Goot = 'zink' | 'pvc' | 'bakgoot' | 'weet_niet'
 export type Start = 'zo_snel_mogelijk' | 'binnen_3_maanden' | 'dit_jaar' | 'orienterend'
+export type Houtwerk = 'goed' | 'slecht' | 'weet_niet'
 
 export type Antwoorden = {
+  doel?: Doel
   werken?: Werk[]
+  houtwerk?: Houtwerk            // enkel gevraagd bij "Ik weet het nog niet"
   materiaal?: Materiaal
   bouwjaar?: Bouwjaar
   isolatie?: Isolatie
@@ -63,6 +87,8 @@ export const PRIJSTABEL = {
     golfplaten: [60, 100],
     weet_niet: [75, 135],
   } as Record<string, Vork>,
+  houtwerk: [50, 110] as Vork,            // nieuw houtwerk (kepers en gordingen) incl. afbraak, per m² dak
+  herstelling: [250, 1500] as Vork,       // kleine herstelling ter plaatse, incl. verplaatsing
   // Plat dak, per m²: afbraak en nieuwe dakbedekking (isolatie apart)
   platDak: {
     epdm: [75, 115],
@@ -129,7 +155,8 @@ const NAAM: Record<Werk, string> = {
   isolatie: 'Hellend dak isoleren',
   plat_dak: 'Plat dak vernieuwen',
   goten: 'Dakgoten vervangen',
-  lekkage: 'Lekkage laten onderzoeken',
+  lekkage: 'Lek opsporen en herstellen',
+  herstelling: 'Herstelling',
   advies: 'Persoonlijk advies',
 }
 
@@ -151,6 +178,70 @@ export function gekozenWerken(maten: DakMaten, antwoorden: Antwoorden): Werk[] {
   return w
 }
 
+/** Welke keuzes passen bij het gemeten dak */
+export function doelMogelijk(doel: Doel, maten: DakMaten): boolean {
+  if (doel === 'dakbedekking' || doel === 'volledig' || doel === 'isolatie') return maten.hellend >= 5
+  if (doel === 'plat_dak') return maten.plat >= 5
+  return true
+}
+
+function basisWerken(doel: Doel, maten: DakMaten): Werk[] {
+  switch (doel) {
+    case 'lek': return ['lekkage']
+    case 'dakbedekking':
+    case 'volledig': return ['dakbedekking']
+    case 'weet_niet': return [...gekozenWerken(maten, {}).filter((w) => w !== 'isolatie'), 'advies']
+    default: return [doel]
+  }
+}
+
+// Wat er bij het gekozen werk nog mee kan, met dezelfde steiger
+const EXTRA_BIJ: Partial<Record<Doel, Werk[]>> = {
+  dakbedekking: ['isolatie', 'goten', 'plat_dak'],
+  volledig: ['isolatie', 'goten', 'plat_dak'],
+  plat_dak: ['goten', 'dakbedekking'],
+}
+
+export function extraOpties(doel: Doel, maten: DakMaten): Werk[] {
+  return (EXTRA_BIJ[doel] ?? []).filter((w) =>
+    w === 'plat_dak' ? maten.plat >= 5 : w === 'dakbedekking' || w === 'isolatie' ? maten.hellend >= 5 : true)
+}
+
+/** De werken waarvoor we rekenen: het doel, plus wat de bezoeker er nog bij koos */
+export function werkenVoor(doel: Doel, maten: DakMaten, extra: Werk[] = []): Werk[] {
+  return [...basisWerken(doel, maten), ...extraOpties(doel, maten).filter((w) => extra.includes(w))]
+}
+
+/** Oudere aanvragen hebben geen doel: afgeleid uit de werken */
+export function doelUitWerken(werken: Werk[]): Doel {
+  if (werken.includes('dakbedekking')) return 'dakbedekking'
+  if (werken.includes('plat_dak')) return 'plat_dak'
+  if (werken.includes('isolatie')) return 'isolatie'
+  if (werken.includes('lekkage')) return 'lek'
+  if (werken.includes('herstelling')) return 'herstelling'
+  if (werken.includes('goten')) return 'goten'
+  return 'weet_niet'
+}
+
+/** Wat de bezoeker wil, in woorden (dashboard) */
+export function werkOmschrijving(a: Antwoorden): string[] {
+  const werken = a.werken ?? []
+  if (!a.doel) return werken.map((w) => WERK_LABEL[w])
+  const extra = EXTRA_BIJ[a.doel] ?? []
+  return [DOEL[a.doel].titel, ...werken.filter((w) => extra.includes(w)).map((w) => WERK_LABEL[w])]
+}
+
+// Het houtwerk (kepers en gordingen) wordt vervangen bij een volledig nieuw dak, anders blijft het.
+// Weet de bezoeker niet wat nodig is, dan rekenen we het als mogelijkheid mee (zoals asbest).
+// Oudere aanvragen zonder doel: het houtwerk blijft, zoals toen gerekend.
+export function houtwerkVan(a: Antwoorden): 'vervangen' | 'mogelijk' | 'blijft' {
+  if (a.doel === 'volledig') return 'vervangen'
+  if (a.doel !== 'weet_niet') return 'blijft'
+  if (a.houtwerk === 'slecht') return 'vervangen'
+  if (a.houtwerk === 'goed') return 'blijft'
+  return 'mogelijk'
+}
+
 // Asbest kan enkel in kunstleien en golfplaten van vóór 2001. Zolang materiaal of bouwjaar onbekend is,
 // rekenen we het als mogelijkheid mee: zo maakt elk antwoord de prijsvork smaller, nooit breder.
 function asbestKans(a: Antwoorden): 0 | 'mogelijk' | 'waarschijnlijk' {
@@ -163,9 +254,10 @@ function asbestKans(a: Antwoorden): 0 | 'mogelijk' | 'waarschijnlijk' {
 }
 
 /** Welke vragen tellen mee voor de gekozen werken (de andere slaan we over) */
-export type Vraag = 'materiaal' | 'bouwjaar' | 'isolatie' | 'zolder' | 'aansluitingen' | 'zonnepanelen' | 'woningtype' | 'goot' | 'start'
-export function vragenVoor(werken: Werk[]): Vraag[] {
+export type Vraag = 'houtwerk' | 'materiaal' | 'bouwjaar' | 'isolatie' | 'zolder' | 'aansluitingen' | 'zonnepanelen' | 'woningtype' | 'goot' | 'start'
+export function vragenVoor(werken: Werk[], doel?: Doel): Vraag[] {
   const v = new Set<Vraag>()
+  if (doel === 'weet_niet' && werken.includes('dakbedekking')) v.add('houtwerk')
   if (werken.includes('dakbedekking') || werken.includes('plat_dak')) {
     v.add('materiaal'); v.add('bouwjaar'); v.add('aansluitingen'); v.add('zonnepanelen'); v.add('woningtype')
   }
@@ -173,8 +265,13 @@ export function vragenVoor(werken: Werk[]): Vraag[] {
   if (werken.includes('isolatie')) { v.add('isolatie'); if (!werken.includes('dakbedekking')) v.add('zolder'); v.add('bouwjaar') }
   if (werken.includes('goten')) v.add('goot')
   v.add('start')
-  const volgorde: Vraag[] = ['materiaal', 'bouwjaar', 'isolatie', 'zolder', 'aansluitingen', 'zonnepanelen', 'woningtype', 'goot', 'start']
+  const volgorde: Vraag[] = ['houtwerk', 'materiaal', 'bouwjaar', 'isolatie', 'zolder', 'aansluitingen', 'zonnepanelen', 'woningtype', 'goot', 'start']
   return volgorde.filter((x) => v.has(x))
+}
+
+/** Een herstelling of lek prijzen we niet scherper online: dat kan pas ter plaatse */
+export function kanVerfijnen(werken: Werk[], doel?: Doel): boolean {
+  return vragenVoor(werken, doel).some((v) => v !== 'start')
 }
 
 export function berekenPrijs(maten: DakMaten, a: Antwoorden = {}): Prijsresultaat {
@@ -203,16 +300,24 @@ export function berekenPrijs(maten: DakMaten, a: Antwoorden = {}): Prijsresultaa
   const regels: Prijsregel[] = []
   for (const werk of werken) {
     const posten: Post[] = []
+    let naam = NAAM[werk]
     let uitleg = ''
 
     if (werk === 'dakbedekking' && hellend > 0) {
       const mat = a.materiaal && !PLAT_MATERIAAL.includes(a.materiaal) ? a.materiaal : 'weet_niet'
       const p = T.dakbedekking[mat]
+      const hout = houtwerkVan(a)
       posten.push({ naam: `Nieuwe dakbedekking, ${getal(hellend)} m²`, min: hellend * p[0], max: hellend * p[1] })
+      if (hout === 'vervangen') posten.push({ naam: `Nieuw houtwerk, ${getal(hellend)} m²`, min: hellend * T.houtwerk[0], max: hellend * T.houtwerk[1] })
+      if (hout === 'mogelijk') posten.push({ naam: 'Mogelijk nieuw houtwerk', min: 0, max: hellend * T.houtwerk[1] })
       const kans = asbestKans(a)
       if (kans === 'waarschijnlijk') posten.push({ naam: 'Asbest verwijderen en afvoeren', min: hellend * T.asbestPerM2[0], max: hellend * T.asbestPerM2[1] })
       if (kans === 'mogelijk') posten.push({ naam: 'Mogelijk asbest verwijderen', min: 0, max: hellend * T.asbestPerM2[1] })
-      uitleg = `${getal(hellend)} m² ${MATERIAAL_NAAM[mat]}, incl. afbraak, onderdak en latten`
+      if (hout === 'vervangen') naam = 'Volledig nieuw dak'
+      if (hout === 'mogelijk') naam = 'Dak vernieuwen'
+      uitleg = hout === 'vervangen'
+        ? `${getal(hellend)} m² ${MATERIAAL_NAAM[mat]}, incl. afbraak, nieuw houtwerk, onderdak en latten`
+        : `${getal(hellend)} m² ${MATERIAAL_NAAM[mat]}, incl. afbraak, onderdak en latten; ${hout === 'blijft' ? 'het houtwerk blijft' : 'het houtwerk nog na te kijken'}`
     } else if (werk === 'isolatie' && hellend > 0) {
       if (a.isolatie === 'goed') {
         posten.push({ naam: 'Isolatie nakijken', min: 0, max: 0 })
@@ -242,7 +347,11 @@ export function berekenPrijs(maten: DakMaten, a: Antwoorden = {}): Prijsresultaa
       uitleg = `±${lengte} m ${a.goot && a.goot !== 'weet_niet' ? (a.goot === 'bakgoot' ? 'bakgoot' : `${a.goot === 'pvc' ? 'PVC' : 'zinken'} goot`) : 'goot'}${maten.gootlengte ? ', gemeten uit uw dakscan' : ''}`
     } else if (werk === 'lekkage') {
       posten.push({ naam: 'Onderzoek ter plaatse', min: T.lekkage[0], max: T.lekkage[1] })
-      uitleg = 'Inspectie en opsporen van de oorzaak'
+      posten.push({ naam: 'Het lek herstellen', min: 0, max: T.herstelling[1] })
+      uitleg = 'Opsporen van de oorzaak en herstellen; de prijs hangt af van wat er gevonden wordt'
+    } else if (werk === 'herstelling') {
+      posten.push({ naam: 'Herstelling ter plaatse', min: T.herstelling[0], max: T.herstelling[1] })
+      uitleg = 'Een kleine herstelling, incl. verplaatsing; de juiste prijs na een plaatsbezoek'
     } else if (werk === 'advies') {
       continue
     } else {
@@ -257,7 +366,7 @@ export function berekenPrijs(maten: DakMaten, a: Antwoorden = {}): Prijsresultaa
 
     const min = posten.reduce((s, p) => s + p.min, 0)
     const max = posten.reduce((s, p) => s + p.max, 0)
-    regels.push({ werk, naam: NAAM[werk], uitleg, min, max, posten })
+    regels.push({ werk, naam, uitleg, min, max, posten })
   }
 
   const totaalMin = regels.reduce((s, r) => s + r.min, 0)

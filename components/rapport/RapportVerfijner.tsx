@@ -3,8 +3,8 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
-import { gekozenWerken, vragenVoor, type Antwoorden, type Werk } from '@/lib/prijsmodel'
-import { Vragenstroom, WerkKeuze, type Maten } from '@/components/PrijsVerfijner'
+import { doelUitWerken, extraOpties, gekozenWerken, kanVerfijnen, vragenVoor, werkenVoor, type Antwoorden, type Werk } from '@/lib/prijsmodel'
+import { DoelKeuze, ExtraKeuze, Vragenstroom, type Maten } from '@/components/PrijsVerfijner'
 
 /**
  * "Maak mijn prijs nauwkeuriger" in het rapport: voor wie het algemene rapport koos,
@@ -20,8 +20,13 @@ export default function RapportVerfijner({ sessionId, maten, antwoorden: begin, 
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [werken, setWerken] = useState<Werk[]>(begin.werken?.length ? begin.werken : gekozenWerken(maten, {}))
-  const [antwoorden, setAntwoorden] = useState<Antwoorden>(begin)
+  // Oudere rapporten hebben geen doel: afgeleid uit de werken, de rest wordt een extra
+  const beginWerken = begin.werken?.length ? begin.werken : gekozenWerken(maten, {})
+  const [antwoorden, setAntwoorden] = useState<Antwoorden>({ ...begin, doel: begin.doel ?? doelUitWerken(beginWerken) })
+  const [extra, setExtra] = useState<Werk[]>(beginWerken)
+  const doel = antwoorden.doel ?? 'weet_niet'
+  const werken = werkenVoor(doel, maten, extra)
+  const verfijnbaar = kanVerfijnen(werken, doel)
   const [status, setStatus] = useState<'rust' | 'bewaren' | 'bijgewerkt' | 'fout'>('rust')
   const kader = useRef<HTMLDivElement>(null)
   const gelogd = useRef(new Set<string>())
@@ -83,11 +88,11 @@ export default function RapportVerfijner({ sessionId, maten, antwoorden: begin, 
                 Antwoorden aanpassen
               </button>
             </>
-          ) : (
+          ) : verfijnbaar ? (
             <>
               <p className="text-lg font-bold text-navy">Maak uw prijs nauwkeuriger</p>
               <p className="mt-1 text-sm text-slate-700">
-                Uw prijs is nu op ±{nauwkeurigheid}% nauwkeurig. Beantwoord {vragenVoor(werken).length} korte vragen en zie meteen
+                Uw prijs is nu op ±{nauwkeurigheid}% nauwkeurig. Beantwoord {vragenVoor(werken, doel).length} korte vragen en zie meteen
                 een scherpere prijs. Uw rapport wordt meteen bijgewerkt.
               </p>
               <button type="button" onClick={() => { setOpen(true); log('rapport_verfijnen') }}
@@ -95,16 +100,22 @@ export default function RapportVerfijner({ sessionId, maten, antwoorden: begin, 
                 Maak mijn prijs nauwkeuriger
               </button>
             </>
+          ) : (
+            <>
+              <p className="font-semibold text-navy">Toch iets anders laten doen?</p>
+              <button type="button" onClick={() => { setOpen(true); log('rapport_verfijnen') }}
+                className="mt-2 min-h-11 text-sm font-semibold text-navy underline underline-offset-2">
+                Kies opnieuw wat u wilt laten doen
+              </button>
+            </>
           )}
         </div>
       ) : (
         <div className="space-y-5 rounded-2xl border border-slate-200 p-4 sm:p-6">
-          <WerkKeuze gekozen={werken} beschikbaar={[
-            ...(maten.hellend >= 5 ? (['dakbedekking', 'isolatie'] as Werk[]) : []),
-            ...(maten.plat >= 5 ? (['plat_dak'] as Werk[]) : []),
-            'goten', 'lekkage',
-          ]} onChange={setWerken} />
+          <DoelKeuze compact maten={maten} gekozen={doel} onKies={(d) => setAntwoorden({ ...antwoorden, doel: d })} />
+          <ExtraKeuze opties={extraOpties(doel, maten)} gekozen={extra} onChange={setExtra} />
           <Vragenstroom
+            key={doel}
             maten={maten}
             werken={werken}
             antwoorden={antwoorden}

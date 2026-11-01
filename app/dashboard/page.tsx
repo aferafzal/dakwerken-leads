@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation'
 import { ExternalLink, Mail, Phone } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { isBeheerder } from '@/lib/beheer-auth'
-import { berekenPrijs, WERK_LABEL, type Antwoorden, type DakMaten } from '@/lib/prijsmodel'
+import { berekenPrijs, werkOmschrijving, type Antwoorden, type DakMaten } from '@/lib/prijsmodel'
 import { isOpvolging, OPVOLG_GROEPEN, type Opvolging } from '@/lib/opvolging'
 import LeadOpvolging from './LeadOpvolging'
 
@@ -18,8 +18,10 @@ export const metadata: Metadata = {
 const FUNNEL_STAPPEN: { stap: string; label: string }[] = [
   { stap: 'adres',              label: 'Funnel geopend' },
   { stap: 'scan',               label: 'Adres gekozen' },
+  { stap: 'werk',               label: 'Dak bevestigd' },
   { stap: 'prijs',              label: 'Prijs bekeken' },
   { stap: 'verfijnen',          label: 'Prijs verfijnen gestart' },
+  { stap: 'vraag_houtwerk',     label: '· vraag: houtwerk' },
   { stap: 'vraag_materiaal',    label: '· vraag: materiaal' },
   { stap: 'vraag_bouwjaar',     label: '· vraag: bouwjaar' },
   { stap: 'vraag_isolatie',     label: '· vraag: isolatie' },
@@ -109,8 +111,8 @@ function prijsVan(l: Lead): { min: number; max: number; nauwkeurigheid: number }
 }
 
 function werkenVan(l: Lead): string[] {
-  const w = l.dak_data?.antwoorden?.werken
-  if (w?.length) return w.map((x) => WERK_LABEL[x])
+  const a = l.dak_data?.antwoorden
+  if (a?.werken?.length) return werkOmschrijving(a)
   return (l.type_werken ?? []).map((t) => TYPE_LABEL[t] ?? t)
 }
 

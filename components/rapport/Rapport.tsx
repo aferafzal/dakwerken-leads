@@ -3,6 +3,7 @@ import type { Aandachtspunt, RapportData } from '@/lib/rapport'
 import { kaderRond, luchtfotoUrl } from '@/lib/rapport'
 import type { Windrichting } from '@/lib/dakscan'
 import { BEDRIJF } from '@/lib/bedrijf'
+import { gekozenWerken, houtwerkVan, kanVerfijnen } from '@/lib/prijsmodel'
 import DakscanBeeld from './DakscanBeeld'
 import DeelKnoppen from './DeelKnoppen'
 import RapportVerfijner from './RapportVerfijner'
@@ -49,6 +50,8 @@ function SectieKop({ titel, inleiding }: { titel: string; inleiding?: string }) 
 
 export default function Rapport({ data, sessionId, voorbeeld = false }: { data: RapportData; sessionId: string | null; voorbeeld?: boolean }) {
   const hoofdPrijs = data.kosten.regels.find((r) => r.max > 0)
+  // Een herstelling of lek wordt online niet scherper: dan geen nauwkeurigheid tonen
+  const verfijnbaar = kanVerfijnen(gekozenWerken(data.maten, data.antwoorden), data.antwoorden.doel)
   const samenvatting = [
     data.dakvorm,
     data.helling !== null && `helling\u00a0±${data.helling}°`,
@@ -76,14 +79,19 @@ export default function Rapport({ data, sessionId, voorbeeld = false }: { data: 
   // Doorsnede: welke lagen bij de werken horen (alleen voor een hellend dak)
   const metWerk = (w: string) => data.kosten.regels.some((r) => r.werk === w && r.max > 0)
   const bewoond = data.antwoorden.zolder === 'bewoond'
+  const nieuwHout = houtwerkVan(data.antwoorden) === 'vervangen'
   const opbouw: { nadruk: Laag[]; tekst: string } | null =
     metWerk('dakbedekking') && metWerk('isolatie') ? {
-      nadruk: ['pannen', 'panlatten', 'tengellatten', 'onderdak', 'isolatie'],
-      tekst: 'Bij een nieuwe dakbedekking met isolatie worden de lagen 1 tot 5 vernieuwd. De isolatie komt dan langs buiten: uw zolder blijft vrij.',
+      nadruk: ['pannen', 'panlatten', 'tengellatten', 'onderdak', 'isolatie', ...(nieuwHout ? (['kepers'] as Laag[]) : [])],
+      tekst: nieuwHout
+        ? 'Bij een volledig nieuw dak met isolatie worden de lagen 1 tot 6 vernieuwd, ook de kepers. De isolatie komt langs buiten: uw zolder blijft vrij.'
+        : 'Bij een nieuwe dakbedekking met isolatie worden de lagen 1 tot 5 vernieuwd. De isolatie komt dan langs buiten: uw zolder blijft vrij.',
     }
     : metWerk('dakbedekking') ? {
-      nadruk: ['pannen', 'panlatten', 'tengellatten', 'onderdak'],
-      tekst: 'Bij een nieuwe dakbedekking worden de pannen, de latten en het onderdak vernieuwd (1 tot 4). De kepers blijven, tenzij ze beschadigd zijn.',
+      nadruk: ['pannen', 'panlatten', 'tengellatten', 'onderdak', ...(nieuwHout ? (['kepers'] as Laag[]) : [])],
+      tekst: nieuwHout
+        ? 'Bij een volledig nieuw dak worden ook de kepers vernieuwd (6), samen met het onderdak, de latten en de pannen (1 tot 4).'
+        : 'Bij een nieuwe dakbedekking worden de pannen, de latten en het onderdak vernieuwd (1 tot 4). De kepers blijven, tenzij ze beschadigd zijn.',
     }
     : metWerk('isolatie') ? {
       nadruk: ['isolatie', 'dampscherm', ...(bewoond ? (['afwerking'] as Laag[]) : [])],
@@ -167,7 +175,9 @@ export default function Rapport({ data, sessionId, voorbeeld = false }: { data: 
                     {euro(hoofdPrijs.min)} – {euro(hoofdPrijs.max)}
                   </dd>
                   <dd className="text-sm text-white/75">
-                    {data.verfijnd ? 'Uw persoonlijke prijs' : 'Algemene prijs'}, op ±{data.kosten.nauwkeurigheid}% nauwkeurig
+                    {verfijnbaar
+                      ? `${data.verfijnd ? 'Uw persoonlijke prijs' : 'Algemene prijs'}, op ±${data.kosten.nauwkeurigheid}% nauwkeurig`
+                      : 'De juiste prijs na een plaatsbezoek'}
                   </dd>
                 </div>
               )}
@@ -296,12 +306,14 @@ export default function Rapport({ data, sessionId, voorbeeld = false }: { data: 
                 ))}
               </tbody>
             </table>
-            <div className="mt-4 flex items-center gap-3 text-sm">
-              <span className="font-semibold text-navy">Nauwkeurigheid ±{data.kosten.nauwkeurigheid}%</span>
-              <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200" aria-hidden>
-                <span className="block h-full rounded-full bg-amber" style={{ width: `${data.kosten.zekerheid}%` }} />
-              </span>
-            </div>
+            {verfijnbaar && (
+              <div className="mt-4 flex items-center gap-3 text-sm">
+                <span className="font-semibold text-navy">Nauwkeurigheid ±{data.kosten.nauwkeurigheid}%</span>
+                <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200" aria-hidden>
+                  <span className="block h-full rounded-full bg-amber" style={{ width: `${data.kosten.zekerheid}%` }} />
+                </span>
+              </div>
+            )}
 
             {data.inzichten.length > 0 && (
               <ul className="inzichten mt-4 space-y-2">

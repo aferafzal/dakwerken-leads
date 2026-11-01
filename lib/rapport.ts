@@ -230,7 +230,7 @@ export async function maakRapport(lead: LeadRow): Promise<RapportData> {
       })()
   const VAN_TYPE: Record<string, Werk[]> = {
     pannen: ['dakbedekking'], isolatie: ['isolatie'], plat_dak: ['plat_dak'], dakgoten: ['goten'],
-    lekkage_onderzoek: ['lekkage'], totaalrenovatie: ['dakbedekking', 'isolatie'], advies: ['advies'],
+    lekkage_onderzoek: ['lekkage'], herstelling: ['herstelling'], totaalrenovatie: ['dakbedekking', 'isolatie'], advies: ['advies'],
   }
   const werkenUitLead = [...new Set((lead.type_werken ?? []).flatMap((t) => VAN_TYPE[t] ?? []))]
   const antwoorden: Antwoorden = dak.antwoorden ?? {
