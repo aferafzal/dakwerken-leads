@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { isBeheerder } from '@/lib/beheer-auth'
+import { sendChatBericht } from '@/lib/notifications'
 
 const messageSchema = z.object({
   conversation_id: z.string().uuid(),
@@ -37,6 +38,18 @@ export async function POST(request: Request) {
   if (error) {
     console.error('[chat/message]', error)
     return NextResponse.json({ error: 'Database fout' }, { status: 500 })
+  }
+
+  // Bericht van een bezoeker: de eigenaar krijgt meteen een mail (anders ziet hij het enkel in het dashboard)
+  if (parsed.data.van === 'klant') {
+    after(async () => {
+      const { data: gesprek } = await supabase
+        .from('conversations')
+        .select('naam, email')
+        .eq('id', parsed.data.conversation_id)
+        .single<{ naam: string | null; email: string | null }>()
+      await sendChatBericht({ naam: gesprek?.naam ?? null, email: gesprek?.email ?? null, inhoud: parsed.data.inhoud })
+    })
   }
 
   return NextResponse.json({ id: data.id, created_at: data.created_at })

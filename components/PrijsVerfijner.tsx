@@ -208,9 +208,19 @@ export function DoelKeuze({ maten, gekozen, onKies, compact = false }: {
 
 const EXTRA_LABEL: Partial<Record<Werk, string>> = {
   isolatie: 'Isolatie (langs buiten)',
+  dakramen: 'Dakramen (Velux)',
   goten: 'Dakgoten',
   plat_dak: 'Plat dak',
   dakbedekking: 'Hellend dak',
+}
+
+/** Hoeveel dakramen er geplaatst of vervangen worden (bij het werk 'dakramen') */
+export function DakramenAantal({ waarde, onChange }: { waarde: number; onChange: (n: number) => void }) {
+  return (
+    <div className="rounded-xl border border-slate-200 px-4">
+      <Teller label="Aantal dakramen" waarde={waarde} onChange={onChange} min={1} max={20} />
+    </div>
+  )
 }
 
 /** Wat er bij het gekozen werk nog mee kan */
@@ -243,7 +253,6 @@ const TEKST: Record<Vraag, { titel: string; waarom: string }> = {
   bouwjaar: { titel: 'Wanneer is uw woning gebouwd?', waarom: 'Belangrijk voor de btw, premies en asbest.' },
   isolatie: { titel: 'Is uw dak nu geïsoleerd?', waarom: 'Bepaalt of er isolatie nodig is, en hoeveel.' },
   zolder: { titel: 'Is uw zolder bewoond of afgewerkt?', waarom: 'Langs binnen isoleren kost meer als de zolder al afgewerkt is.' },
-  aansluitingen: { titel: 'Wat zit er in uw dak?', waarom: 'Elk dakraam, elke dakkapel en schoorsteen moet opnieuw waterdicht aangesloten worden.' },
   zonnepanelen: { titel: 'Liggen er zonnepanelen op uw dak?', waarom: 'Die moeten eraf en terug tijdens de werken.' },
   woningtype: { titel: 'Wat voor woning is het?', waarom: 'Bepaalt hoe de steiger geplaatst wordt.' },
   goot: { titel: 'Wat voor dakgoot heeft u?', waarom: 'Zink, PVC en bakgoten verschillen sterk in prijs.' },
@@ -314,17 +323,17 @@ const SLEUTEL: Partial<Record<Vraag, keyof Antwoorden>> = {
   woningtype: 'woningtype', goot: 'goot', start: 'start',
 }
 
-function Teller({ label, waarde, onChange }: { label: string; waarde: number; onChange: (n: number) => void }) {
+export function Teller({ label, waarde, onChange, min = 0, max = 60 }: { label: string; waarde: number; onChange: (n: number) => void; min?: number; max?: number }) {
   return (
     <div className="flex items-center justify-between gap-3 py-2.5">
       <span className="font-semibold text-navy">{label}</span>
       <div className="flex items-center gap-1">
-        <button type="button" aria-label={`${label}: één minder`} disabled={waarde <= 0} onClick={() => onChange(waarde - 1)}
+        <button type="button" aria-label={`${label}: één minder`} disabled={waarde <= min} onClick={() => onChange(waarde - 1)}
           className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 text-navy transition-colors hover:border-navy disabled:opacity-40">
           <Minus className="h-4 w-4" aria-hidden />
         </button>
         <span className="w-10 text-center text-lg font-bold tabular-nums text-navy" aria-live="polite">{waarde}</span>
-        <button type="button" aria-label={`${label}: één meer`} onClick={() => onChange(Math.min(waarde + 1, 60))}
+        <button type="button" aria-label={`${label}: één meer`} disabled={waarde >= max} onClick={() => onChange(Math.min(waarde + 1, max))}
           className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 text-navy transition-colors hover:border-navy">
           <Plus className="h-4 w-4" aria-hidden />
         </button>
@@ -346,7 +355,6 @@ export function Vragenstroom({ maten, werken, antwoorden, onAntwoord, onVraag, o
   const [fase, setFase] = useState<'kiezen' | 'feedback'>('kiezen')
   const [winst, setWinst] = useState(0)
   const [nieuweInzichten, setNieuweInzichten] = useState<Inzicht[]>([])
-  const [tellers, setTellers] = useState({ dakramen: antwoorden.dakramen ?? 0, dakkapellen: antwoorden.dakkapellen ?? 0, schoorstenen: antwoorden.schoorstenen ?? 0 })
   const [panelen, setPanelen] = useState<number | null>(antwoorden.zonnepanelen && antwoorden.zonnepanelen > 0 ? antwoorden.zonnepanelen : null)
   const feedbackRef = useRef<HTMLDivElement>(null)
   const bovenRef = useRef<HTMLDivElement>(null)
@@ -496,28 +504,6 @@ export function Vragenstroom({ maten, werken, antwoorden, onAntwoord, onVraag, o
               </button>
             )
           })}
-        </div>
-      )}
-
-      {vraag === 'aansluitingen' && (
-        <div>
-          <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 px-4">
-            <Teller label="Dakramen" waarde={tellers.dakramen} onChange={(n) => setTellers({ ...tellers, dakramen: n })} />
-            <Teller label="Dakkapellen" waarde={tellers.dakkapellen} onChange={(n) => setTellers({ ...tellers, dakkapellen: n })} />
-            <Teller label="Schoorstenen" waarde={tellers.schoorstenen} onChange={(n) => setTellers({ ...tellers, schoorstenen: n })} />
-          </div>
-          {fase === 'kiezen' && (
-            <div className="mt-3 flex gap-2">
-              <button type="button" onClick={() => beantwoord({ dakramen: null, dakkapellen: null, schoorstenen: null })}
-                className="min-h-12 flex-1 rounded-xl border border-slate-300 px-4 text-sm font-semibold text-navy hover:border-navy">
-                Weet ik niet
-              </button>
-              <button type="button" onClick={() => beantwoord({ ...tellers })}
-                className="min-h-12 flex-1 rounded-xl bg-navy px-4 text-sm font-bold text-white hover:brightness-110">
-                Klopt
-              </button>
-            </div>
-          )}
         </div>
       )}
 

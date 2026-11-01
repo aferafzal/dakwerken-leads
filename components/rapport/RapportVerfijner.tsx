@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
 import { doelUitWerken, extraOpties, gekozenWerken, kanVerfijnen, vragenVoor, werkenVoor, type Antwoorden, type Werk } from '@/lib/prijsmodel'
-import { DoelKeuze, ExtraKeuze, Vragenstroom, type Maten } from '@/components/PrijsVerfijner'
+import { DakramenAantal, DoelKeuze, ExtraKeuze, Vragenstroom, type Maten } from '@/components/PrijsVerfijner'
 
 /**
  * "Maak mijn prijs nauwkeuriger" in het rapport: voor wie het algemene rapport koos,
@@ -114,6 +114,9 @@ export default function RapportVerfijner({ sessionId, maten, antwoorden: begin, 
         <div className="space-y-5 rounded-2xl border border-slate-200 p-4 sm:p-6">
           <DoelKeuze compact maten={maten} gekozen={doel} onKies={(d) => setAntwoorden({ ...antwoorden, doel: d })} />
           <ExtraKeuze opties={extraOpties(doel, maten)} gekozen={extra} onChange={setExtra} />
+          {werken.includes('dakramen') && (
+            <DakramenAantal waarde={antwoorden.dakramenNieuw ?? 1} onChange={(n) => setAntwoorden({ ...antwoorden, dakramenNieuw: n })} />
+          )}
           <Vragenstroom
             key={doel}
             maten={maten}

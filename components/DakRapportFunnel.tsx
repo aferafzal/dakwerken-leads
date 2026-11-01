@@ -10,14 +10,14 @@ import {
   DOEL, type Antwoorden, type Doel, type Vraag, type Werk,
 } from '@/lib/prijsmodel'
 import AdresZoeker from '@/components/AdresZoeker'
-import { DoelKeuze, ExtraKeuze, PrijsKaart, Vragenstroom } from '@/components/PrijsVerfijner'
+import { DakramenAantal, DoelKeuze, ExtraKeuze, PrijsKaart, Vragenstroom } from '@/components/PrijsVerfijner'
 import type { DakmetingResultaat } from '@/app/api/dakmeting/route'
 import type { KaartFase, PerceelSelectie } from './DakKaart'
 import { isGeldigTelefoon } from '@/lib/validations'
 
 // Werken zoals ze in de databank staan (kolom type_werken)
-const WERK_NAAR_TYPE: Record<Werk, 'pannen' | 'isolatie' | 'plat_dak' | 'dakgoten' | 'lekkage_onderzoek' | 'herstelling' | 'advies'> = {
-  dakbedekking: 'pannen', isolatie: 'isolatie', plat_dak: 'plat_dak', goten: 'dakgoten', lekkage: 'lekkage_onderzoek', herstelling: 'herstelling', advies: 'advies',
+const WERK_NAAR_TYPE: Record<Werk, 'pannen' | 'isolatie' | 'plat_dak' | 'dakgoten' | 'dakramen' | 'lekkage_onderzoek' | 'herstelling' | 'advies'> = {
+  dakbedekking: 'pannen', isolatie: 'isolatie', plat_dak: 'plat_dak', goten: 'dakgoten', dakramen: 'dakramen', lekkage: 'lekkage_onderzoek', herstelling: 'herstelling', advies: 'advies',
 }
 
 const DakKaart = dynamic(() => import('./DakKaart'), { ssr: false })
@@ -451,6 +451,9 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
             </div>
 
             <ExtraKeuze opties={extraOpties(doel, maten)} gekozen={extra} onChange={setExtra} />
+            {werken.includes('dakramen') && (
+              <DakramenAantal waarde={antwoorden.dakramenNieuw ?? 1} onChange={(n) => setAntwoorden({ ...antwoorden, dakramenNieuw: n })} />
+            )}
 
             <PrijsKaart prijs={prijs} titel={prijs.regels.length > 1 ? 'Samen, indicatief' : `${prijs.regels[0]?.naam ?? 'Uw dak'}, indicatief`} metRegels meter={verfijnbaar} />
 
@@ -564,7 +567,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
             <div>
               <h2 className="text-xl font-bold text-gray-900 mb-1">Uw rapport bespreken met een dakwerker?</h2>
               <p className="text-sm text-gray-600">
-                Een gecertificeerde dakwerker uit ons netwerk overloopt uw rapport met u aan de telefoon.
+                Een gecontroleerde dakwerker uit ons netwerk overloopt uw rapport met u aan de telefoon.
               </p>
             </div>
 

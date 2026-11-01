@@ -133,28 +133,53 @@ function kijkrichting(van: { lat: number; lng: number }, naar: [number, number])
 
 /**
  * Gevelbeeld: een fotopunt aan de overkant van de straat (zo staan gevel én dak in beeld),
- * met de camera gericht op de woning. Lukt dat niet, dan het dichtstbijzijnde fotopunt.
+ * met de camera op het midden van de woning en een beeldhoek die de hele woning toont.
+ *
+ * Formaat 640×320: Google levert hoogstens 640 px breed. Vroeger vroegen we 1200×600 en kregen we 640×600,
+ * dat het rapport tot 2:1 bijsneed: dak en straat vielen weg, het beeld leek ingezoomd.
  */
-async function streetViewBeeld(lat: number | null, lng: number | null, woning: [number, number][] | null): Promise<string | null> {
+async function streetViewBeeld(lat: number | null, lng: number | null, woning: [number, number][] | null, nokhoogte: number | null): Promise<string | null> {
   const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   if (lat == null || lng == null || !key) return null
   try {
+    const [ax, ay] = naarLambert([lat, lng])
+    const punten: [number, number][] = woning && woning.length > 2 ? woning : [[ax, ay]]
+    const mx = punten.reduce((s, [x]) => s + x, 0) / punten.length
+    const my = punten.reduce((s, [, y]) => s + y, 0) / punten.length
+    // Afstand van een fotopunt tot de dichtste hoek van de woning
+    const afstand = (p: Panorama) => {
+      const [px, py] = naarLambert([p.location.lat, p.location.lng])
+      return Math.min(...punten.map(([x, y]) => Math.hypot(x - px, y - py)))
+    }
+
+    // Van het midden van de woning via het adrespunt (straatkant) naar buiten: eerst op 20 m, dan verder of dichter.
+    // Een fotopunt vlak voor de gevel (< 8 m) toont enkel een stuk muur: dat slaan we over.
     let pano: Panorama | null = null
-    if (woning && woning.length > 2) {
-      // Van het midden van het gebouw naar het adrespunt (aan de straatkant), en 15 m verder
-      const [ax, ay] = naarLambert([lat, lng])
-      const mx = woning.reduce((s, [x]) => s + x, 0) / woning.length
-      const my = woning.reduce((s, [, y]) => s + y, 0) / woning.length
-      const d = Math.hypot(ax - mx, ay - my)
-      if (d > 0.5) {
-        const [olat, olng] = naarWgs84([ax + ((ax - mx) / d) * 15, ay + ((ay - my) / d) * 15])
-        pano = await zoekPanorama(olat, olng, 12, key)
+    const d = Math.hypot(ax - mx, ay - my)
+    if (punten.length > 2 && d > 0.5) {
+      for (const m of [20, 28, 14]) {
+        const [olat, olng] = naarWgs84([ax + ((ax - mx) / d) * m, ay + ((ay - my) / d) * m])
+        const p = await zoekPanorama(olat, olng, 8, key)
+        if (p && afstand(p) >= 8) { pano = p; break }
       }
     }
     pano ??= await zoekPanorama(lat, lng, 50, key)
     if (!pano) return null
-    const richting = Math.round(kijkrichting(pano.location, [lat, lng]))
-    return `https://maps.googleapis.com/maps/api/streetview?size=1200x600&pano=${pano.pano_id}&heading=${richting}&fov=80&pitch=15&key=${key}`
+
+    // Kijkrichting en beeldhoek: de hoeken van de woning zoals ze vanaf het fotopunt gezien worden, met marge
+    const midden = kijkrichting(pano.location, naarWgs84([mx, my]))
+    const relatief = punten.map(([x, y]) => ((kijkrichting(pano!.location, naarWgs84([x, y])) - midden + 540) % 360) - 180)
+    const links = Math.min(...relatief), rechts = Math.max(...relatief)
+    const richting = Math.round((midden + (links + rechts) / 2 + 360) % 360)
+    // Hoogte: van net onder de horizon tot boven de nok (camera op ±2,5 m). Bij een hoog gebouw dichtbij
+    // wordt het beeld breder en kijkt de camera meer omhoog: het dak gaat voor op de straat.
+    const rad = Math.PI / 180
+    const hoek = Math.atan(((nokhoogte ?? 9) - 2.5) / Math.max(afstand(pano), 4)) / rad
+    const nodigHoog = (hoek + 3 + 5) / 2
+    const fov = Math.round(Math.min(120, Math.max(60, (rechts - links) * 1.3 + 15, (2 * Math.atan(2 * Math.tan(nodigHoog * rad))) / rad)))
+    const halfHoog = Math.atan(Math.tan((fov / 2) * rad) / 2) / rad
+    const pitch = Math.round(Math.min(35, Math.max(5, hoek + 3 - halfHoog)))
+    return `https://maps.googleapis.com/maps/api/streetview?size=640x320&pano=${pano.pano_id}&heading=${richting}&fov=${fov}&pitch=${pitch}&key=${key}`
   } catch {
     return null
   }
@@ -211,7 +236,8 @@ export async function maakRapport(lead: LeadRow): Promise<RapportData> {
     ),
     drieDModel(dak.capakey, lat, lng),
   ])
-  const streetView = await streetViewBeeld(lat, lng, metScan.find((g) => g.woning)?.omtrek ?? null)
+  const woningScan = metScan.find((g) => g.woning)
+  const streetView = await streetViewBeeld(lat, lng, woningScan?.omtrek ?? null, woningScan?.scan?.nokhoogte ?? dak.dakscan?.nokhoogte ?? dak.nokhoogte ?? null)
   // Andere gebouwen nummeren zoals in de funnel (2, 3, …)
   let nr = 2
   for (const g of metScan) if (!g.woning) g.naam = `Gebouw ${nr++}`
@@ -230,7 +256,7 @@ export async function maakRapport(lead: LeadRow): Promise<RapportData> {
       })()
   const VAN_TYPE: Record<string, Werk[]> = {
     pannen: ['dakbedekking'], isolatie: ['isolatie'], plat_dak: ['plat_dak'], dakgoten: ['goten'],
-    lekkage_onderzoek: ['lekkage'], herstelling: ['herstelling'], totaalrenovatie: ['dakbedekking', 'isolatie'], advies: ['advies'],
+    lekkage_onderzoek: ['lekkage'], herstelling: ['herstelling'], dakramen: ['dakramen'], totaalrenovatie: ['dakbedekking', 'isolatie'], advies: ['advies'],
   }
   const werkenUitLead = [...new Set((lead.type_werken ?? []).flatMap((t) => VAN_TYPE[t] ?? []))]
   const antwoorden: Antwoorden = dak.antwoorden ?? {

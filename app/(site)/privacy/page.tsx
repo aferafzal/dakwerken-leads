@@ -89,7 +89,7 @@ export default function PrivacyPage() {
           <p>
             <strong className="font-semibold text-gray-900">Een dakwerker uit ons netwerk.</strong>{' '}
             We voeren de werken niet zelf uit. Vraagt u een offerte aan of wilt u gebeld worden, dan
-            geven we uw gegevens en uw dakrapport door aan een gecertificeerde dakwerker uit ons
+            geven we uw gegevens en uw dakrapport door aan een gecontroleerde dakwerker uit ons
             netwerk in uw regio, zodat die contact met u kan opnemen.
           </p>
           <p>

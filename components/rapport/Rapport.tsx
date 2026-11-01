@@ -49,7 +49,11 @@ function SectieKop({ titel, inleiding }: { titel: string; inleiding?: string }) 
 }
 
 export default function Rapport({ data, sessionId, voorbeeld = false }: { data: RapportData; sessionId: string | null; voorbeeld?: boolean }) {
-  const hoofdPrijs = data.kosten.regels.find((r) => r.max > 0)
+  // Bovenaan: het totaal van alle gekozen werken, zoals de bezoeker het in de funnel zag
+  const metPrijs = data.kosten.regels.filter((r) => r.max > 0)
+  const hoofdPrijs = metPrijs.length > 1
+    ? { naam: `${metPrijs.length} werken samen`, min: data.kosten.min, max: data.kosten.max }
+    : metPrijs[0]
   // Een herstelling of lek wordt online niet scherper: dan geen nauwkeurigheid tonen
   const verfijnbaar = kanVerfijnen(gekozenWerken(data.maten, data.antwoorden), data.antwoorden.doel)
   const samenvatting = [
@@ -335,7 +339,7 @@ export default function Rapport({ data, sessionId, voorbeeld = false }: { data: 
             />
 
             <p className="mt-3 max-w-prose text-xs leading-relaxed text-slate-600">
-              Indicatieve prijzen, {data.kosten.btwInbegrepen ? 'inclusief' : 'exclusief'} btw. Een gecertificeerde dakwerker maakt na een plaatsbezoek een definitieve offerte.
+              Indicatieve prijzen, {data.kosten.btwInbegrepen ? 'inclusief' : 'exclusief'} btw. Een dakwerker uit ons netwerk maakt na een plaatsbezoek een definitieve offerte.
               {data.kosten.btwInbegrepen ? '' : ' Voor de renovatie van een woning ouder dan tien jaar geldt meestal 6% btw in plaats van 21%.'}
             </p>
           </Sectie>
@@ -427,8 +431,8 @@ export default function Rapport({ data, sessionId, voorbeeld = false }: { data: 
         <section className="compact-print-blok blok rounded-2xl bg-navy p-6 sm:p-8 print:border print:border-slate-300 print:bg-white">
           <h2 className="text-2xl font-black tracking-tight text-white print:text-navy">Wilt u een offerte?</h2>
           <p className="mt-2 max-w-prose text-[15px] leading-relaxed text-white/80 print:text-slate-700">
-            Een gecertificeerde dakwerker uit ons netwerk bekijkt uw dak en maakt een offerte op maat.
-            Offerte binnen 2 uur, op werkdagen. Gratis en zonder verplichting.
+            Een gecontroleerde dakwerker uit ons netwerk bekijkt uw dak en maakt een offerte op maat.
+            Eerste prijsvoorstel binnen 2 uur, op werkdagen. Gratis en zonder verplichting.
           </p>
           <div className="mt-6 flex flex-wrap gap-3 print:hidden">
             {TELEFOON && (
@@ -455,7 +459,7 @@ export default function Rapport({ data, sessionId, voorbeeld = false }: { data: 
         <footer className="blok border-t border-slate-200 pt-6 text-xs leading-relaxed text-slate-600">
           <p>
             <strong className="text-navy">Dit rapport is informatief.</strong> {BEDRIJF.handelsnaam} brengt u in contact met een
-            gecertificeerde dakwerker uit ons netwerk; die maakt na een plaatsbezoek een definitieve offerte.
+            gecontroleerde dakwerker uit ons netwerk; die maakt na een plaatsbezoek een definitieve offerte.
           </p>
           <p className="mt-2">
             Bronnen: luchtfoto&apos;s en laserhoogtemeting (DHMV II) van Digitaal Vlaanderen, Gebouwenregister en Kadaster

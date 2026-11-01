@@ -1,6 +1,6 @@
 // Bedrijfsgegevens — enige bron voor footer, privacyverklaring en wettelijke vermeldingen.
 // "Dakwerken Oost-Vlaanderen" is een handelsnaam van AOA Management CommV.
-// De werken zelf voert een gecertificeerde partner-dakwerker uit de regio uit.
+// De werken zelf voert een gecontroleerde partner-dakwerker uit de regio uit (KBO en btw nagekeken).
 
 export const BEDRIJF = {
   handelsnaam:       'Dakwerken Oost-Vlaanderen',

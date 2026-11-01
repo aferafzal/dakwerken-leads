@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { sendLeadEmail, sendRapportEmail } from '@/lib/notifications'
+import { sendNieuweAanvraag, sendRapportEmail, sendTerugbelAanvraag } from '@/lib/notifications'
 import {
   funnelStapEmail,
   funnelStapVragenlijst,
@@ -10,9 +10,12 @@ import {
 // POST /api/funnel/step
 // Body: { stap: 'email' | 'vragenlijst' | 'telefoon', sessionId: string, data: {...} }
 //
-// 'email'       → maakt nieuwe lead aan (status='warm'), returned id
+// 'email'       → maakt nieuwe lead aan (status='warm'), returned id; rapportmail naar de bezoeker + melding naar de eigenaar
 // 'vragenlijst' → update lead met opt-in antwoorden (status='engaged')
-// 'telefoon'    → update lead met telefoon (status='hot') + trigger email naar eigenaar
+// 'telefoon'    → update lead met telefoon (status='hot') + melding 'bel terug' naar de eigenaar
+//
+// Mails gaan via after(): ze blokkeren het antwoord niet, en op Vercel loopt de functie door tot ze verstuurd zijn.
+// (Een losse promise zonder await kan wegvallen zodra het antwoord vertrokken is.)
 export async function POST(request: Request) {
   let body: { stap?: string; sessionId?: string; data?: unknown }
   try {
@@ -35,6 +38,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Validatiefout', details: parsed.error.flatten() }, { status: 422 })
     }
     const d = parsed.data
+    const lead = {
+      sessionId,
+      email:       d.email,
+      adres:       d.adres ?? null,
+      gemeente:    d.gemeente ?? null,
+      oppervlakte: d.dakOppervlakte ?? null,
+      dakData:     d.dak_data ?? null,
+    }
 
     try {
       const { data: inserted, error } = await supabase
@@ -58,20 +69,14 @@ export async function POST(request: Request) {
 
       if (error) throw error
 
-      // Email naar gebruiker met link naar /rapport/[sessionId] (niet-blokkerend)
-      sendRapportEmail({
-        email:       d.email,
-        sessionId,
-        adres:       d.adres ?? null,
-        gemeente:    d.gemeente ?? null,
-        oppervlakte: d.dakOppervlakte ?? null,
-      }).catch((err) => console.error('[funnel/step:email] rapport-mail:', err))
+      after(() => Promise.all([sendRapportEmail(lead), sendNieuweAanvraag(lead)]))
 
       return NextResponse.json({ success: true, id: inserted?.id })
     } catch (err) {
       console.error('[funnel/step:email]', err)
-      const msg = err instanceof Error ? err.message : (typeof err === 'object' ? JSON.stringify(err) : String(err))
-      return NextResponse.json({ error: 'Opslaan mislukt', detail: msg }, { status: 500 })
+      // Vangnet: de databank faalde (bv. gepauzeerd). De eigenaar krijgt de aanvraag toch, om zelf op te volgen.
+      after(() => sendNieuweAanvraag(lead, true))
+      return NextResponse.json({ error: 'Opslaan mislukt' }, { status: 500 })
     }
   }
 
@@ -99,8 +104,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true })
     } catch (err) {
       console.error('[funnel/step:vragenlijst]', err)
-      const msg = err instanceof Error ? err.message : (typeof err === 'object' ? JSON.stringify(err) : String(err))
-      return NextResponse.json({ error: 'Update mislukt', detail: msg }, { status: 500 })
+      return NextResponse.json({ error: 'Update mislukt' }, { status: 500 })
     }
   }
 
@@ -124,34 +128,33 @@ export async function POST(request: Request) {
           status:           'hot',
         })
         .eq('session_id', sessionId)
-        .select('id, email, adres, gemeente, dak_oppervlakte')
+        .select('id, email, adres, gemeente, dak_oppervlakte, dak_data')
         .single()
 
       if (error) throw error
 
-      // Notificatie naar eigenaar (niet-blokkerend)
       if (updated) {
-        sendLeadEmail({
-          id:               updated.id,
-          naam:             d.naam,
-          telefoon:         d.telefoon,
-          email:            updated.email ?? '',
-          adres:            updated.adres ?? '',
-          gemeente:         updated.gemeente ?? '',
-          probleem:         d.probleem ?? 'anders',
-          urgentie:         d.urgentie ?? 3,
-          opmerking:        d.beste_tijd ? `Beste tijd om te bellen: ${d.beste_tijd}` : '',
-          dakOppervlakte:   updated.dak_oppervlakte ?? undefined,
-          gdpr_consent:     true,
-          followup_consent: d.followup_consent,
-        }).catch((err) => console.error('[funnel/step:telefoon] email:', err))
+        after(() => sendTerugbelAanvraag({
+          sessionId,
+          email:       updated.email ?? null,
+          adres:       updated.adres ?? null,
+          gemeente:    updated.gemeente ?? null,
+          oppervlakte: updated.dak_oppervlakte ?? null,
+          dakData:     updated.dak_data ?? null,
+          naam:        d.naam,
+          telefoon:    d.telefoon,
+          besteTijd:   d.beste_tijd,
+        }))
       }
 
       return NextResponse.json({ success: true, id: updated?.id })
     } catch (err) {
       console.error('[funnel/step:telefoon]', err)
-      const msg = err instanceof Error ? err.message : (typeof err === 'object' ? JSON.stringify(err) : String(err))
-      return NextResponse.json({ error: 'Update mislukt', detail: msg }, { status: 500 })
+      after(() => sendTerugbelAanvraag({
+        sessionId, email: null, adres: null, gemeente: null, oppervlakte: null, dakData: null,
+        naam: d.naam, telefoon: d.telefoon, besteTijd: d.beste_tijd,
+      }, true))
+      return NextResponse.json({ error: 'Update mislukt' }, { status: 500 })
     }
   }
 

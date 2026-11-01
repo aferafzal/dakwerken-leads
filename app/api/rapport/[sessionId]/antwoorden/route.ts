@@ -8,8 +8,9 @@ import { createClient } from '@/lib/supabase/server'
 
 const aantal = z.number().int().min(0).max(60).nullable().optional()
 const antwoordenSchema = z.object({
-  doel: z.enum(['lek', 'herstelling', 'dakbedekking', 'volledig', 'plat_dak', 'isolatie', 'goten', 'weet_niet']).optional(),
-  werken: z.array(z.enum(['dakbedekking', 'isolatie', 'plat_dak', 'goten', 'lekkage', 'herstelling', 'advies'])).max(7).optional(),
+  doel: z.enum(['lek', 'herstelling', 'dakbedekking', 'volledig', 'plat_dak', 'dakraam', 'isolatie', 'goten', 'weet_niet']).optional(),
+  werken: z.array(z.enum(['dakbedekking', 'isolatie', 'plat_dak', 'goten', 'dakramen', 'lekkage', 'herstelling', 'advies'])).max(8).optional(),
+  dakramenNieuw: z.number().int().min(1).max(20).optional(),
   houtwerk: z.enum(['goed', 'slecht', 'weet_niet']).optional(),
   materiaal: z.enum(['betonpannen', 'keramische_pannen', 'natuurleien', 'kunstleien', 'golfplaten', 'epdm', 'roofing', 'zink', 'weet_niet']).optional(),
   bouwjaar: z.enum(['voor_1980', '1980_2000', '2000_2015', 'na_2015', 'onbekend']).optional(),
@@ -26,7 +27,7 @@ const antwoordenSchema = z.object({
 const bodySchema = z.object({ antwoorden: antwoordenSchema, verfijnd: z.boolean().optional() })
 
 const NAAR_TYPE = {
-  dakbedekking: 'pannen', isolatie: 'isolatie', plat_dak: 'plat_dak', goten: 'dakgoten', lekkage: 'lekkage_onderzoek', herstelling: 'herstelling', advies: 'advies',
+  dakbedekking: 'pannen', isolatie: 'isolatie', plat_dak: 'plat_dak', goten: 'dakgoten', dakramen: 'dakramen', lekkage: 'lekkage_onderzoek', herstelling: 'herstelling', advies: 'advies',
 } as const
 
 export async function POST(request: NextRequest, ctx: { params: Promise<{ sessionId: string }> }) {

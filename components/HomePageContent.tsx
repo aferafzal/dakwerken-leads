@@ -46,7 +46,7 @@ const VRAGEN: { v: string; a: React.ReactNode }[] = [
   },
   {
     v: 'Wie zijn de dakwerkers?',
-    a: 'Gecertificeerde dakwerkers uit uw regio, uit ons netwerk. Vraagt u een offerte aan, dan wordt u op werkdagen binnen 2 uur gebeld.',
+    a: 'Dakwerkers uit uw regio, uit ons netwerk. We controleren elke dakwerker vooraf: inschrijving in de KBO en btw-nummer. Vraagt u om gebeld te worden, dan gebeurt dat op werkdagen binnen 2 uur.',
   },
 ]
 
@@ -297,12 +297,12 @@ export default function HomePageContent() {
             </h2>
             <p className="mt-5 text-base leading-relaxed text-white/80 sm:text-lg">
               Het rapport is gratis en verplicht u tot niets. Wilt u verder, dan brengen we u in contact
-              met een gecertificeerde dakwerker uit uw regio. U wordt alleen gebeld als u daar zelf om vraagt.
+              met een gecontroleerde dakwerker uit uw regio. U wordt alleen gebeld als u daar zelf om vraagt.
             </p>
           </div>
 
           <ul className="mt-12 grid gap-4 sm:grid-cols-3">
-            {['Officiële gegevens', 'Gecertificeerde dakwerkers', 'Offerte binnen 2 uur, op werkdagen'].map((t) => (
+            {['Officiële gegevens', 'Gecontroleerde dakwerkers', 'Eerste prijsvoorstel binnen 2 uur, op werkdagen'].map((t) => (
               <li
                 key={t}
                 className="flex items-center gap-3 rounded-xl p-5 text-base font-semibold text-white"
@@ -320,7 +320,7 @@ export default function HomePageContent() {
             <h3 className="text-xl font-bold text-white">Wie zit erachter</h3>
             <p className="mt-3 text-base leading-relaxed text-white/80">
               Dakwerken Oost-Vlaanderen is een dienst van AOA Management CommV. Wij maken het rapport en
-              zoeken de juiste dakwerker. Het werk zelf doet een gecertificeerde partner uit uw regio.
+              zoeken de juiste dakwerker. Het werk zelf doet een gecontroleerde partner uit uw regio.
               Actief in heel Oost-Vlaanderen.
             </p>
           </div>
