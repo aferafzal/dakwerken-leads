@@ -156,9 +156,12 @@ export default function HomePageContent() {
       {/* ════════════════════════════════════════════════════
           HERO — dronebeeld, kernboodschap, adresveld
       ════════════════════════════════════════════════════ */}
+      {/* Hoogte = het volledige scherm (lvh), ook achter de zwevende werkbalk van Safari op iOS:
+          met svh zag u daar een witte strook van de volgende sectie. De padding onderaan houdt
+          de inhoud gecentreerd in het zichtbare deel (svh); op desktop is ze 0. */}
       <section
         id="hero"
-        className="relative flex min-h-[100svh] items-center justify-center"
+        className="relative flex min-h-[100lvh] items-center justify-center pb-[calc(100lvh_-_100svh)]"
         style={{ background: NAVY }}
       >
         <div className="absolute inset-0 overflow-hidden">
@@ -216,7 +219,7 @@ export default function HomePageContent() {
           type="button"
           onClick={toggleHeroVideo}
           aria-label={heroPauze ? 'Video afspelen' : 'Video pauzeren'}
-          className="absolute bottom-6 left-6 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/30 text-white/80 transition-colors hover:border-white/60 hover:text-white"
+          className="absolute bottom-[calc(100lvh_-_100svh_+_1.5rem)] left-6 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-white/30 text-white/80 transition-colors hover:border-white/60 hover:text-white"
         >
           {heroPauze ? (
             <svg aria-hidden="true" className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
