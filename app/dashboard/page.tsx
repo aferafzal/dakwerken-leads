@@ -63,6 +63,20 @@ type Lead = {
   opvolging?: string | null
   notitie?: string | null
   opvolging_op?: string | null
+  herkomst?: { utm_source?: string; utm_medium?: string; utm_campaign?: string; utm_content?: string; fbclid?: string; verwijzer?: string } | null
+}
+
+// Waar de aanvraag vandaan kwam (migratie 010): bron en, als die er is, campagne en advertentie
+function bronVan(l: Lead): string {
+  const h = l.herkomst
+  if (!h) return 'rechtstreeks of onbekend'
+  const bron = h.utm_source ?? (h.fbclid ? 'facebook' : h.verwijzer?.replace(/^(www|l|lm|m)\./, '')) ?? 'onbekend'
+  return bron.toLowerCase().includes('facebook') || bron === 'fb' ? (h.utm_medium === 'social' ? 'Facebook-pagina' : 'Facebook') : bron
+}
+function herkomstVan(l: Lead): string | null {
+  const h = l.herkomst
+  if (!h) return null
+  return [bronVan(l), h.utm_campaign, h.utm_content].filter(Boolean).join(' · ')
 }
 
 // type_werken van oudere aanvragen (vóór de werkkeuze in de funnel)
@@ -182,6 +196,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const opvolgingVan = (l: Lead): Opvolging => (isOpvolging(l.opvolging) ? l.opvolging : 'nieuw')
   const inGroep = (g: (typeof OPVOLG_GROEPEN)[number], l: Lead) => (g.waarden as readonly string[]).includes(opvolgingVan(l))
   const zichtbaar = leads.filter((l) => inGroep(groep, l))
+  // Aanvragen per bron in de laatste 30 dagen (enkel zodra er herkomst bewaard wordt)
+  const recent = leads.filter((l) => Date.now() - new Date(l.created_at).getTime() < 30 * 86_400_000)
+  const perBron = recent.some((l) => l.herkomst)
+    ? [...recent.reduce((m, l) => m.set(bronVan(l), (m.get(bronVan(l)) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1])
+    : []
 
   return (
     <div className="mx-auto max-w-6xl space-y-14 px-4 pt-28 pb-16">
@@ -193,6 +212,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <p className="mt-1 text-sm text-gray-600">
               Prijzen excl. btw, berekend met de huidige prijstabel en de laatste antwoorden van de klant.
             </p>
+            {perBron.length > 0 && (
+              <p className="mt-1 text-sm text-gray-600">
+                Herkomst, laatste 30 dagen: {perBron.map(([b, n]) => `${b} ${n}`).join(' · ')}
+              </p>
+            )}
           </div>
           <nav aria-label="Filter op opvolging" className="grid w-full grid-cols-4 gap-1 rounded-xl bg-gray-100 p-1 sm:flex sm:w-auto">
             {OPVOLG_GROEPEN.map((g) => {
@@ -265,6 +289,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                         {wie.label}
                       </span>
                       <time dateTime={l.created_at} className="text-gray-600">{wanneer(l.created_at)}</time>
+                      {herkomstVan(l) && <span className="text-gray-500">via {herkomstVan(l)}</span>}
                     </div>
                     {naam ? (
                       <p className="mt-2 truncate font-semibold text-gray-900">{naam}</p>

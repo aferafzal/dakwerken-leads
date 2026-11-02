@@ -5,7 +5,9 @@ import {
   funnelStapEmail,
   funnelStapVragenlijst,
   funnelStapTelefoon,
+  metaVanBrowser,
 } from '@/lib/validations'
+import { bezoekerUit, stuurMetaGebeurtenis } from '@/lib/meta-capi'
 
 // POST /api/funnel/step
 // Body: { stap: 'email' | 'vragenlijst' | 'telefoon', sessionId: string, data: {...} }
@@ -16,8 +18,10 @@ import {
 //
 // Mails gaan via after(): ze blokkeren het antwoord niet, en op Vercel loopt de functie door tot ze verstuurd zijn.
 // (Een losse promise zonder await kan wegvallen zodra het antwoord vertrokken is.)
+// Gaf de bezoeker toestemming voor marketingcookies (body.meta.toestemming), dan gaat de aanvraag ook naar de
+// Meta Conversions API (lib/meta-capi.ts), eveneens via after().
 export async function POST(request: Request) {
-  let body: { stap?: string; sessionId?: string; data?: unknown }
+  let body: { stap?: string; sessionId?: string; data?: unknown; meta?: unknown }
   try {
     body = await request.json()
   } catch {
@@ -30,6 +34,8 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createClient()
+  const metaParsed = metaVanBrowser.safeParse(body.meta)
+  const meta = metaParsed.success && metaParsed.data?.toestemming ? metaParsed.data : null
 
   // ── Stap 1: Email-capture → maak nieuwe lead ─────────────────────
   if (stap === 'email') {
@@ -48,28 +54,38 @@ export async function POST(request: Request) {
     }
 
     try {
-      const { data: inserted, error } = await supabase
-        .from('leads')
-        .insert({
-          email:           d.email,
-          adres:           d.adres ?? null,
-          gemeente:        d.gemeente ?? null,
-          gdpr_consent:    d.gdpr_consent,
-          followup_consent: false,
-          status:          'warm',
-          session_id:      sessionId,
-          dak_data:        d.dak_data ?? null,
-          ...(d.dakOppervlakte ? { dak_oppervlakte: d.dakOppervlakte } : {}),
-          ...(d.bouwjaar ? { bouwjaar: d.bouwjaar } : {}),
-          ...(d.type_werken?.length ? { type_werken: d.type_werken } : {}),
-          ...(d.lekkage_recent ? { lekkage_recent: d.lekkage_recent } : {}),
-        })
-        .select('id')
-        .single()
+      const rij = {
+        email:           d.email,
+        adres:           d.adres ?? null,
+        gemeente:        d.gemeente ?? null,
+        gdpr_consent:    d.gdpr_consent,
+        followup_consent: false,
+        status:          'warm',
+        session_id:      sessionId,
+        dak_data:        d.dak_data ?? null,
+        ...(d.dakOppervlakte ? { dak_oppervlakte: d.dakOppervlakte } : {}),
+        ...(d.bouwjaar ? { bouwjaar: d.bouwjaar } : {}),
+        ...(d.type_werken?.length ? { type_werken: d.type_werken } : {}),
+        ...(d.lekkage_recent ? { lekkage_recent: d.lekkage_recent } : {}),
+      }
+      const herkomst = {
+        ...(d.herkomst && Object.keys(d.herkomst).length ? { herkomst: d.herkomst } : {}),
+        marketing_toestemming: !!meta,
+      }
+      let { data: inserted, error } = await supabase.from('leads').insert({ ...rij, ...herkomst }).select('id').single()
+      // Migratie 010 (herkomst) nog niet uitgevoerd: de aanvraag gaat altijd voor, dan zonder herkomst
+      if (error && /herkomst|marketing_toestemming/.test(error.message ?? '')) {
+        console.warn('[funnel/step:email] kolommen herkomst ontbreken, bewaard zonder herkomst (migratie 010)')
+        ;({ data: inserted, error } = await supabase.from('leads').insert(rij).select('id').single())
+      }
 
       if (error) throw error
 
-      after(() => Promise.all([sendRapportEmail(lead), sendNieuweAanvraag(lead)]))
+      after(() => Promise.all([
+        sendRapportEmail(lead),
+        sendNieuweAanvraag(lead),
+        meta ? stuurMetaGebeurtenis({ naam: 'Lead', eventId: `${sessionId}-lead`, sessionId, email: d.email, fbp: meta.fbp, fbc: meta.fbc, url: meta.url, ...bezoekerUit(request) }) : null,
+      ]))
 
       return NextResponse.json({ success: true, id: inserted?.id })
     } catch (err) {
@@ -132,6 +148,13 @@ export async function POST(request: Request) {
         .single()
 
       if (error) throw error
+
+      if (updated && meta) {
+        after(() => stuurMetaGebeurtenis({
+          naam: 'Contact', eventId: `${sessionId}-contact`, sessionId,
+          email: updated.email ?? null, telefoon: d.telefoon, fbp: meta.fbp, fbc: meta.fbc, url: meta.url, ...bezoekerUit(request),
+        }))
+      }
 
       if (updated) {
         after(() => sendTerugbelAanvraag({

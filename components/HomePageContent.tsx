@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import LeadFormModal from '@/components/LeadFormModal'
 import AdresZoeker from '@/components/AdresZoeker'
+import MarketingCookies from '@/components/MarketingCookies'
+import { leesHerkomst } from '@/lib/herkomst'
 
 // ─────────────────────────────────────────────────────────────
 // KLEUREN (zelfde merk als voorheen)
@@ -150,6 +152,9 @@ export default function HomePageContent() {
     setFormOpen(true)
   }
 
+
+  // Herkomst (utm_*, fbclid) meteen bij de eerste lading vastleggen, zolang ze nog in de link staat
+  useEffect(() => { leesHerkomst() }, [])
 
   return (
     <>
@@ -381,6 +386,7 @@ export default function HomePageContent() {
 
       {/* Funnel blijft gemount: sluiten en heropenen gaat verder bij dezelfde stap */}
       <LeadFormModal open={formOpen} onClose={() => setFormOpen(false)} startVerzoek={startVerzoek} />
+      <MarketingCookies />
     </>
   )
 }

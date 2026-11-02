@@ -14,6 +14,8 @@ import { DakramenAantal, DoelKeuze, ExtraKeuze, PrijsKaart, Vragenstroom } from 
 import type { DakmetingResultaat } from '@/app/api/dakmeting/route'
 import type { KaartFase, PerceelSelectie } from './DakKaart'
 import { isGeldigTelefoon } from '@/lib/validations'
+import { leesHerkomst } from '@/lib/herkomst'
+import { metaGebeurtenis, metaVoorServer } from '@/lib/meta-pixel'
 
 // Werken zoals ze in de databank staan (kolom type_werken)
 const WERK_NAAR_TYPE: Record<Werk, 'pannen' | 'isolatie' | 'plat_dak' | 'dakgoten' | 'dakramen' | 'lekkage_onderzoek' | 'herstelling' | 'advies'> = {
@@ -80,6 +82,8 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
   }
   useEffect(() => {
     if (zichtbaar) log(stap)
+    // Meta (enkel na toestemming): de bezoeker ziet een prijs voor zijn dak
+    if (zichtbaar && stap === 'prijs') metaGebeurtenis('ViewContent', `${sessionId}-prijs`)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stap, zichtbaar])
 
@@ -207,6 +211,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
     }
     if (!gdpr) { setEmailFout('Vink het vakje aan om akkoord te gaan met de privacyverklaring.'); return }
     setBezig(true)
+    const herkomst = leesHerkomst()
     try {
       const res = await fetch('/api/funnel/step', {
         method: 'POST',
@@ -214,9 +219,11 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
         body: JSON.stringify({
           stap: 'email',
           sessionId,
+          meta: metaVoorServer(herkomst?.fbclid),
           data: {
             email,
             gdpr_consent: true,
+            herkomst,
             adres: adresWaarde,
             gemeente: meting?.gemeente ?? perceelSelectie?.gemeente ?? undefined,
             dakOppervlakte: totaalDak ?? undefined,
@@ -257,6 +264,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
         }),
       })
       if (!res.ok) throw new Error('Submit mislukt')
+      metaGebeurtenis('Lead', `${sessionId}-lead`)
       setStap('telefoon')
     } catch {
       setEmailFout('Uw rapport kon niet verstuurd worden. Controleer uw internetverbinding en probeer het opnieuw.')
@@ -282,10 +290,12 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
         body: JSON.stringify({
           stap: 'telefoon',
           sessionId,
+          meta: metaVoorServer(leesHerkomst()?.fbclid),
           data: { naam, telefoon, beste_tijd: besteTijd, followup_consent: false },
         }),
       })
       if (!res.ok) throw new Error('Submit mislukt')
+      metaGebeurtenis('Contact', `${sessionId}-contact`)
       setStap('klaar')
     } catch {
       setTelefoonFout(

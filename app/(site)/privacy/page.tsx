@@ -1,17 +1,18 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { BEDRIJF, BEDRIJF_ADRES } from '@/lib/bedrijf'
+import MarketingCookies, { CookieKeuzeWijzigen } from '@/components/MarketingCookies'
 
 export const metadata: Metadata = {
   title: 'Privacyverklaring',
   description: `Hoe ${BEDRIJF.handelsnaam} omgaat met uw gegevens wanneer u een dakrapport of offerte aanvraagt.`,
 }
 
-const LAATST_BIJGEWERKT = '15 oktober 2026'
+const LAATST_BIJGEWERKT = '2 november 2026'
 
-function Blok({ titel, children }: { titel: string; children: React.ReactNode }) {
+function Blok({ titel, id, children }: { titel: string; id?: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-3">
+    <section id={id} className="space-y-3 scroll-mt-28">
       <h2 className="text-xl font-bold text-gray-900 text-balance">{titel}</h2>
       <div className="space-y-3 text-base leading-relaxed text-gray-700">{children}</div>
     </section>
@@ -65,6 +66,10 @@ export default function PrivacyPage() {
               gemeente, het soort probleem en wanneer we u best bellen.
             </li>
             <li>Als u de chat gebruikt: uw naam, eventueel uw e-mailadres en uw berichten.</li>
+            <li>
+              Via welke link u binnenkwam, bijvoorbeeld een advertentie of een bericht op Facebook
+              (de campagnegegevens in die link). Zo weten we welke advertenties werken.
+            </li>
           </ul>
         </Blok>
 
@@ -77,11 +82,17 @@ export default function PrivacyPage() {
               Om u updates en aanbiedingen te sturen, maar alleen als u daar apart toestemming voor
               gaf. Die toestemming kunt u altijd intrekken.
             </li>
+            <li>
+              Om te meten welke advertenties tot een aanvraag leiden. Met Meta (Facebook) alleen als
+              u daar toestemming voor gaf (zie Cookies).
+            </li>
           </ul>
           <p>
             Voor het rapport, het terugbellen en de offerte gebruiken we uw gegevens omdat u daar
-            zelf om vraagt (artikel 6.1.b AVG). Voor updates en aanbiedingen is uw toestemming de
-            grondslag (artikel 6.1.a AVG).
+            zelf om vraagt (artikel 6.1.b AVG). Voor updates en aanbiedingen en voor de meting met
+            Meta is uw toestemming de grondslag (artikel 6.1.a AVG). Voor de herkomst van uw
+            aanvraag (via welke link u binnenkwam) is dat ons gerechtvaardigd belang om onze
+            advertenties te beoordelen (artikel 6.1.f AVG).
           </p>
         </Blok>
 
@@ -104,6 +115,15 @@ export default function PrivacyPage() {
             ontvangt daarvoor de ligging van de woning en uw IP-adres.
           </p>
           <p>
+            <strong className="font-semibold text-gray-900">Meta (Facebook), alleen met uw toestemming.</strong>{' '}
+            Zegt u ja tegen de cookies van Meta, dan meten we met de Meta-pixel en de Conversions API
+            welke advertenties tot een aanvraag leiden. Meta ontvangt dan uw IP-adres, gegevens over
+            uw browser, de pagina en de stap van de aanvraag (een prijs bekeken, een rapport of een
+            telefoontje gevraagd) en uw e-mailadres en telefoonnummer in versleutelde vorm (gehasht).
+            Voor deze meting zijn wij en Meta Platforms Ireland samen verantwoordelijk. Meta gebruikt
+            de gegevens ook voor eigen doeleinden, zoals beschreven in haar privacybeleid.
+          </p>
+          <p>
             Sommige van deze dienstverleners kunnen gegevens buiten de Europese Economische Ruimte
             verwerken. Dat gebeurt dan met de waarborgen die de AVG daarvoor voorziet, zoals de
             modelcontractbepalingen van de Europese Commissie.
@@ -118,10 +138,18 @@ export default function PrivacyPage() {
           </p>
         </Blok>
 
-        <Blok titel="Cookies">
+        <Blok titel="Cookies" id="cookies">
           <p>
-            Deze site gebruikt geen cookies om u te volgen of advertenties te tonen. Het straatbeeld
-            van Google op de rapportpagina kan wel cookies van Google plaatsen.
+            Cookies van Meta (Facebook) plaatsen we alleen als u daar ja op zegt. Ze dienen om te
+            meten welke advertenties werken. Zegt u nee, dan werkt de site net zo goed. Uw keuze
+            onthoudt uw browser 6 maanden; daarna vragen we het opnieuw.
+          </p>
+          <CookieKeuzeWijzigen />
+          <p>
+            Komt u binnen via een link uit een advertentie of een bericht, dan onthoudt dit
+            tabblad uit welke campagne die link kwam, tot u het sluit. Daarvoor gebruiken we geen
+            cookies. Het straatbeeld van Google op de rapportpagina kan wel cookies van Google
+            plaatsen.
           </p>
           <p>
             We tellen wel anoniem hoeveel bezoekers de site bekijken en welke stap van de aanvraag
@@ -165,6 +193,7 @@ export default function PrivacyPage() {
           </Link>
         </p>
       </article>
+      <MarketingCookies />
     </>
   )
 }

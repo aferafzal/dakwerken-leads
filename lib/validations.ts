@@ -52,7 +52,21 @@ export const funnelStapEmail = z.object({
   bouwjaar: z.enum(['voor_1980', '1980_2000', '2000_2015', 'na_2015', 'onbekend']).optional(),
   type_werken: z.array(z.enum(['pannen', 'isolatie', 'plat_dak', 'dakgoten', 'dakramen', 'lekkage_onderzoek', 'herstelling', 'totaalrenovatie', 'advies'])).optional(),
   lekkage_recent: z.enum(['ja', 'nee', 'niet_zeker']).optional(),
+  // Uit welke link de bezoeker binnenkwam (lib/herkomst.ts)
+  herkomst: z.object({
+    utm_source: z.string().max(200), utm_medium: z.string().max(200), utm_campaign: z.string().max(200),
+    utm_content: z.string().max(200), utm_term: z.string().max(200), fbclid: z.string().max(200),
+    verwijzer: z.string().max(100), landing: z.string().max(200),
+  }).partial().optional(),
 })
+
+/** Wat de browser over Meta meestuurt (lib/meta-pixel.ts → metaVoorServer) */
+export const metaVanBrowser = z.object({
+  toestemming: z.boolean(),
+  fbp: z.string().max(200).optional(),
+  fbc: z.string().max(400).optional(),
+  url: z.string().max(300).optional(),
+}).optional()
 
 /** Stap 2 — Optionele vragenlijst → status 'engaged' */
 export const funnelStapVragenlijst = z.object({
