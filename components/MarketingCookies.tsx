@@ -27,18 +27,17 @@ export default function MarketingCookies() {
     <div role="dialog" aria-label="Cookies" className="fixed inset-x-0 bottom-0 z-[60] p-3 sm:p-4">
       <div className="mx-auto max-w-xl rounded-2xl bg-white p-4 shadow-2xl ring-1 ring-slate-200 sm:p-5">
         <p className="text-sm leading-relaxed text-slate-700">
-          Mogen we cookies van Meta (Facebook) gebruiken om te meten welke advertenties werken?
-          Zonder uw ja plaatsen we ze niet. De site werkt in beide gevallen.{' '}
+          We gebruiken cookies om te meten welke advertenties werken.{' '}
           <Link href="/privacy#cookies" className="underline underline-offset-2 hover:text-slate-900">Meer uitleg</Link>
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button type="button" onClick={() => bewaarKeuze('nee')}
             className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">
-            Nee, liever niet
+            Weigeren
           </button>
           <button type="button" onClick={() => bewaarKeuze('ja')}
             className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">
-            Ja, dat mag
+            Akkoord
           </button>
         </div>
       </div>
