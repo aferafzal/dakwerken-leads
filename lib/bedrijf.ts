@@ -9,7 +9,7 @@ export const BEDRIJF = {
   ondernemingsnummer: '1034.629.219',
   straat:            'Uitbreidingstraat 84',
   postcodeGemeente:  '2600 Antwerpen',
-  email:             'info@aoa-management.com',
+  email:             'info@dakwerken-oostvlaanderen.be',
 } as const
 
 export const BEDRIJF_ADRES = `${BEDRIJF.straat}, ${BEDRIJF.postcodeGemeente}`
