@@ -13,7 +13,9 @@ export async function generateMetadata(
     .from('leads')
     .select('adres, gemeente')
     .eq('session_id', sessionId)
-    .single<{ adres: string | null; gemeente: string | null }>()
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<{ adres: string | null; gemeente: string | null }>()
 
   const adres = data?.adres ?? 'uw woning'
   const gemeente = data?.gemeente ? `, ${data.gemeente}` : ''
@@ -39,7 +41,10 @@ export default async function RapportPage(
     .from('leads')
     .select('id, email, adres, gemeente, dak_oppervlakte, bouwjaar, laatste_dakwerken, lekkage_recent, type_werken, dak_data, created_at')
     .eq('session_id', sessionId)
-    .single<LeadRow>()
+    // Oudere aanvragen konden in één sessie meer dan één rij krijgen: dan de laatste
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<LeadRow>()
 
   if (!lead) notFound()
 

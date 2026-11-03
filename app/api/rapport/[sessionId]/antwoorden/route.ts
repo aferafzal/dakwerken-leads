@@ -46,7 +46,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ sessio
       .from('leads')
       .select('id, status, dak_data')
       .eq('session_id', sessionId)
-      .single<{ id: string; status: string | null; dak_data: Record<string, unknown> | null }>()
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ id: string; status: string | null; dak_data: Record<string, unknown> | null }>()
     if (leesFout || !lead) return NextResponse.json({ error: 'Rapport niet gevonden' }, { status: 404 })
 
     const dakData = { ...(lead.dak_data ?? {}), antwoorden, ...(verfijnd ? { verfijnd: true } : {}) }

@@ -133,6 +133,18 @@ export async function POST(request: Request) {
     const d = parsed.data
 
     try {
+      // Een bezoeker kan in hetzelfde tabblad meer dan één rapport aanvragen (zelfde sessionId):
+      // de telefoonstap hoort bij de laatste aanvraag. Zonder dit gaf .single() een fout bij 2+ rijen.
+      const { data: laatste, error: zoekFout } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (zoekFout) throw zoekFout
+      if (!laatste) throw new Error(`geen aanvraag voor sessie ${sessionId}`)
+
       const { data: updated, error } = await supabase
         .from('leads')
         .update({
@@ -143,7 +155,7 @@ export async function POST(request: Request) {
           followup_consent: d.followup_consent,
           status:           'hot',
         })
-        .eq('session_id', sessionId)
+        .eq('id', laatste.id)
         .select('id, email, adres, gemeente, dak_oppervlakte, dak_data')
         .single()
 

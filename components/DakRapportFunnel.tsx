@@ -64,7 +64,10 @@ interface Props {
 
 export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null }: Props) {
   const [stap, setStap] = useState<Stap>('adres')
-  const [sessionId] = useState(genSessionId)
+  const [sessionId, setSessionId] = useState(genSessionId)
+  // Vraagt de bezoeker in hetzelfde tabblad nog een rapport aan (ander adres, andere werken),
+  // dan krijgt dat een eigen sessie: anders wijzen twee rapportmails naar dezelfde link
+  const rapportVerstuurd = useRef(false)
 
   // Anonieme stapstatistiek: één keer per stap (of vraag) per sessie, enkel als de funnel open is
   const gelogd = useRef<Set<string>>(new Set())
@@ -212,13 +215,14 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
     if (!gdpr) { setEmailFout('Vink het vakje aan om akkoord te gaan met de privacyverklaring.'); return }
     setBezig(true)
     const herkomst = leesHerkomst()
+    const id = rapportVerstuurd.current ? genSessionId() : sessionId
     try {
       const res = await fetch('/api/funnel/step', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           stap: 'email',
-          sessionId,
+          sessionId: id,
           meta: metaVoorServer(herkomst?.fbclid),
           data: {
             email,
@@ -264,7 +268,9 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
         }),
       })
       if (!res.ok) throw new Error('Submit mislukt')
-      metaGebeurtenis('Lead', `${sessionId}-lead`)
+      rapportVerstuurd.current = true
+      if (id !== sessionId) setSessionId(id)
+      metaGebeurtenis('Lead', `${id}-lead`)
       setStap('telefoon')
     } catch {
       setEmailFout('Uw rapport kon niet verstuurd worden. Controleer uw internetverbinding en probeer het opnieuw.')
