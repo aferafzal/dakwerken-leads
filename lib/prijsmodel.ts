@@ -5,7 +5,8 @@
  * Elk antwoord vervangt een brede marktprijs door de smallere prijs die bij dat antwoord hoort,
  * of haalt een onzekere post weg. Nauwkeuriger dan ±10% tonen we nooit: dat kan pas na een plaatsbezoek.
  *
- * PRIJSTABEL: voorstel op basis van publieke Belgische richtprijzen (2026), na te kijken door Afer.
+ * PRIJSTABEL: publieke Belgische richtprijzen (2026), bijgesteld op 3 november 2026 met twee echte offertes
+ * (een grote speler en een gewone dakwerker, geanonimiseerd; zie STAPPENPLAN stap 30).
  */
 
 export type Werk = 'dakbedekking' | 'isolatie' | 'plat_dak' | 'goten' | 'dakramen' | 'lekkage' | 'herstelling' | 'advies'
@@ -83,16 +84,16 @@ export const PRIJSTABEL = {
   btwInbegrepen: false,
   // Hellend dak, per m² dak: afbraak oude bedekking, nieuw onderdak, latten en nieuwe bedekking
   dakbedekking: {
-    betonpannen: [75, 105],
-    keramische_pannen: [90, 130],
-    natuurleien: [125, 180],
-    kunstleien: [80, 115],
-    golfplaten: [60, 100],
-    weet_niet: [75, 135],
+    betonpannen: [82, 100],
+    keramische_pannen: [105, 130],
+    natuurleien: [145, 180],
+    kunstleien: [85, 105],
+    golfplaten: [65, 85],
+    weet_niet: [85, 130],
   } as Record<string, Vork>,
-  houtwerk: [50, 110] as Vork,            // nieuw houtwerk (kepers en gordingen) incl. afbraak, per m² dak
+  houtwerk: [60, 85] as Vork,             // nieuw houtwerk (kepers en gordingen) incl. afbraak, per m² dak
   herstelling: [250, 1500] as Vork,       // kleine herstelling ter plaatse, incl. verplaatsing
-  nieuwDakraam: [900, 2000] as Vork,      // dakraam plaatsen of vervangen: raam, gootstuk en plaatsing, zonder binnenafwerking
+  nieuwDakraam: [1050, 1400] as Vork,     // dakraam plaatsen of vervangen: raam, gootstuk en plaatsing, zonder binnenafwerking
   // Plat dak, per m²: afbraak en nieuwe dakbedekking (isolatie apart)
   platDak: {
     epdm: [75, 115],
@@ -101,33 +102,35 @@ export const PRIJSTABEL = {
     weet_niet: [65, 120],
   } as Record<string, Vork>,
   isolatie: {
-    binnenOnbewoond: [40, 70] as Vork,    // zolder niet bewoond: langs binnen, zonder afwerking
-    binnenBewoond: [70, 110] as Vork,     // zolder bewoond: langs binnen, incl. afwerking
-    buiten: [55, 90] as Vork,             // langs buiten, samen met nieuwe dakbedekking (meerprijs)
-    onbekend: [40, 110] as Vork,
+    binnenOnbewoond: [45, 60] as Vork,    // zolder niet bewoond: langs binnen, zonder afwerking
+    binnenBewoond: [75, 100] as Vork,     // zolder bewoond: langs binnen, incl. afwerking
+    buiten: [62, 85] as Vork,             // langs buiten, samen met nieuwe dakbedekking (meerprijs)
+    onbekend: [45, 100] as Vork,
     platDak: [35, 60] as Vork,            // isolatie plat dak, per m²
   },
-  asbestPerM2: [15, 35] as Vork,          // verwijderen en afvoeren
+  asbestPerM2: [20, 30] as Vork,          // verwijderen en afvoeren
   dakraam: [250, 450] as Vork,            // bestaand dakraam opnieuw aansluiten
   dakkapel: [600, 1500] as Vork,          // aansluiting van een bestaande dakkapel
   schoorsteen: [300, 700] as Vork,        // loodwerk en aansluiting
-  zonnepaneel: [45, 85] as Vork,          // de- en hermonteren, per paneel
+  zonnepaneel: [110, 145] as Vork,        // de- en hermonteren, per paneel
   steiger: {
-    vrijstaand: [900, 1800],
-    halfopen: [800, 1500],
-    rij: [700, 1300],
-    weet_niet: [700, 1800],
+    vrijstaand: [1800, 2800],
+    halfopen: [1200, 1800],
+    rij: [900, 1300],
+    weet_niet: [900, 2800],
   } as Record<Woningtype, Vork>,
   steigerHoogToeslag: 1.3,                // nok hoger dan 10 m
   gootPerMeter: {
-    zink: [65, 110],
-    pvc: [30, 55],
-    bakgoot: [120, 200],
-    weet_niet: [30, 110],
+    zink: [100, 130],
+    pvc: [35, 50],
+    bakgoot: [140, 175],
+    weet_niet: [35, 130],
   } as Record<Goot, Vork>,
   lekkage: [150, 450] as Vork,            // onderzoek ter plaatse
   // Als een antwoord ontbreekt, rekenen we met een gangbare bandbreedte
-  onbekend: { dakramen: [0, 2] as Vork, dakkapellen: [0, 1] as Vork, schoorstenen: [0, 1] as Vork, zonnepanelen: [0, 8] as Vork },
+  onbekend: { dakramen: [0, 2] as Vork, dakkapellen: [0, 1] as Vork, schoorstenen: [0, 1] as Vork, zonnepanelen: [0, 6] as Vork },
+  // Gangbare aansluitingen (dakraam, schoorsteen) per woningtype, zolang de dakwerker ze nog niet telde
+  aansluitingen: { vrijstaand: [500, 1500], halfopen: [400, 1100], rij: [300, 900], weet_niet: [300, 1500] } as Record<Woningtype, Vork>,
   minNauwkeurigheid: 10,                  // ±%: nooit nauwkeuriger tonen
 }
 
@@ -292,7 +295,7 @@ export function berekenPrijs(maten: DakMaten, a: Antwoorden = {}): Prijsresultaa
   // Gemeenschappelijke posten bij werk aan het dak (één keer, bij het eerste dakwerk)
   const steiger = maal(T.steiger[a.woningtype ?? 'weet_niet'], hoog ? T.steigerHoogToeslag : 1)
   const extra = (): Post[] => {
-    const posten: Post[] = [{ naam: 'Steiger en veiligheid', min: steiger[0], max: steiger[1] }]
+    const posten: Post[] = [{ naam: 'Steiger, container en veiligheid', min: steiger[0], max: steiger[1] }]
     const ramen = telVork(a.dakramen, T.onbekend.dakramen)
     const kapellen = telVork(a.dakkapellen, T.onbekend.dakkapellen)
     const schouwen = telVork(a.schoorstenen, T.onbekend.schoorstenen)
@@ -301,7 +304,8 @@ export function berekenPrijs(maten: DakMaten, a: Antwoorden = {}): Prijsresultaa
     // Enkel oudere aanvragen hebben ze geteld; die krijgen nog een post per soort.
     const geteld = [a.dakramen, a.dakkapellen, a.schoorstenen].some((n) => n !== undefined)
     if (!geteld) {
-      posten.push({ naam: 'Aansluitingen van dakramen en schoorsteen (ter plaatse geteld)', min: 0, max: ramen[1] * T.dakraam[1] + kapellen[1] * T.dakkapel[1] + schouwen[1] * T.schoorsteen[1] })
+      const aans = T.aansluitingen[a.woningtype ?? 'weet_niet']
+      posten.push({ naam: 'Aansluitingen van dakraam en schoorsteen (gangbaar, ter plaatse geteld)', min: aans[0], max: aans[1] })
     }
     if (geteld && ramen[1] > 0) posten.push({ naam: `Dakramen aansluiten${a.dakramen ? ` (${a.dakramen})` : ''}`, min: ramen[0] * T.dakraam[0], max: ramen[1] * T.dakraam[1] })
     if (geteld && kapellen[1] > 0) posten.push({ naam: `Dakkapel aansluiten${a.dakkapellen ? ` (${a.dakkapellen})` : ''}`, min: kapellen[0] * T.dakkapel[0], max: kapellen[1] * T.dakkapel[1] })
