@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/server'
 const eventSchema = z.object({
   sessionId: z.string().min(8).max(64),
   // Stappen van de funnel en de vragen van "Maak mijn prijs nauwkeuriger" (vraag_materiaal, …)
-  stap: z.string().regex(/^(adres|scan|werk|doel_[a-z_]{3,20}|prijs|verfijnen|verfijnd|email|telefoon|klaar|preview|vragenlijst|vraag_[a-z]{3,20}|rapport_verfijnen|rapport_verfijnd)$/),
+  stap: z.string().regex(/^(adres|scan|werk|doel_[a-z_]{3,20}|prijs|verfijnen|verfijnd|email|telefoon|klaar|preview|vragenlijst|vraag_[a-z]{3,20}|rapport_verfijnen|rapport_verfijnd|email_fout_\d{3}|telefoon_fout_\d{3})$/),
 })
 
 export async function POST(request: Request) {

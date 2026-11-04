@@ -42,7 +42,8 @@ export const probleemLabels: Record<LeadFormData['probleem'], string> = {
 
 /** Stap 1 — Email + dakscan-data → status 'warm' */
 export const funnelStapEmail = z.object({
-  email: z.string().email('Ongeldig e-mailadres'),
+  // Op een gsm zet automatisch aanvullen vaak een spatie achter het adres: wegnemen vóór de controle
+  email: z.string().transform((v) => v.replace(/[\u200b-\u200d\ufeff]/g, '')).pipe(z.string().trim().toLowerCase().email('Ongeldig e-mailadres')),
   gdpr_consent: z.literal(true, { error: 'U moet akkoord gaan met de privacyverklaring' }),
   adres: z.string().optional(),
   gemeente: z.string().optional(),

@@ -208,7 +208,8 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
   async function submitEmail(e: React.FormEvent) {
     e.preventDefault()
     setEmailFout(null)
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    const schoon = email.replace(/[\u200b-\u200d\ufeff]/g, '').trim()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(schoon)) {
       setEmailFout('Dit e-mailadres klopt niet. Bijvoorbeeld: naam@voorbeeld.be')
       return
     }
@@ -225,7 +226,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
           sessionId: id,
           meta: metaVoorServer(herkomst?.fbclid),
           data: {
-            email,
+            email: schoon,
             gdpr_consent: true,
             herkomst,
             adres: adresWaarde,
@@ -267,7 +268,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
           },
         }),
       })
-      if (!res.ok) throw new Error('Submit mislukt')
+      if (!res.ok) { log(`email_fout_${res.status}`); throw new Error('Submit mislukt') }
       rapportVerstuurd.current = true
       if (id !== sessionId) setSessionId(id)
       metaGebeurtenis('Lead', `${id}-lead`)
@@ -300,7 +301,7 @@ export default function DakRapportFunnel({ zichtbaar = true, startVerzoek = null
           data: { naam, telefoon, beste_tijd: besteTijd, followup_consent: false },
         }),
       })
-      if (!res.ok) throw new Error('Submit mislukt')
+      if (!res.ok) { log(`telefoon_fout_${res.status}`); throw new Error('Submit mislukt') }
       metaGebeurtenis('Contact', `${sessionId}-contact`)
       setStap('klaar')
     } catch {
