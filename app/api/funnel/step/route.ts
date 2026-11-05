@@ -8,6 +8,7 @@ import {
   metaVanBrowser,
 } from '@/lib/validations'
 import { bezoekerUit, stuurMetaGebeurtenis } from '@/lib/meta-capi'
+import { voegTijdlijnToe } from '@/lib/dashboard/gegevens'
 
 // POST /api/funnel/step
 // Body: { stap: 'email' | 'vragenlijst' | 'telefoon', sessionId: string, data: {...} }
@@ -82,7 +83,10 @@ export async function POST(request: Request) {
       if (error) throw error
 
       after(() => Promise.all([
-        sendRapportEmail(lead),
+        sendRapportEmail(lead).then((ok) => inserted?.id && voegTijdlijnToe([
+          { lead_id: inserted.id, soort: 'aanvraag', door: 'klant', samenvatting: 'Dakrapport aangevraagd', data: null },
+          { lead_id: inserted.id, soort: 'rapport_verstuurd', door: 'systeem', samenvatting: ok ? 'Rapportmail verstuurd naar de klant' : 'Rapportmail NIET verstuurd', data: null },
+        ])),
         sendNieuweAanvraag(lead),
         meta ? stuurMetaGebeurtenis({ naam: 'Lead', eventId: `${sessionId}-lead`, sessionId, email: d.email, fbp: meta.fbp, fbc: meta.fbc, url: meta.url, ...bezoekerUit(request) }) : null,
       ]))
@@ -169,6 +173,11 @@ export async function POST(request: Request) {
       }
 
       if (updated) {
+        after(() => voegTijdlijnToe([{
+          lead_id: updated.id, soort: 'terugbellen', door: 'klant',
+          samenvatting: `Vraagt om teruggebeld te worden (${{ direct: 'zo snel mogelijk', vandaag: 'later vandaag', morgen: 'morgen' }[d.beste_tijd ?? 'direct'] ?? 'zo snel mogelijk'})`,
+          data: null,
+        }]))
         after(() => sendTerugbelAanvraag({
           sessionId,
           email:       updated.email ?? null,

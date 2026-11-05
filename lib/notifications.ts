@@ -86,7 +86,7 @@ function prijsVan(d: DakData): { min: number; max: number; btw: boolean } | null
   return d.prijs && d.prijs.max > 0 ? { ...d.prijs, btw: false } : null
 }
 
-const LABEL: Record<string, Record<string, string>> = {
+export const LABEL: Record<string, Record<string, string>> = {
   houtwerk: { goed: 'in goede staat', slecht: 'rot, houtworm of doorbuiging', weet_niet: 'weet niet' },
   materiaal: {
     betonpannen: 'betonpannen', keramische_pannen: 'keramische pannen', natuurleien: 'natuurleien', kunstleien: 'kunstleien',
@@ -99,7 +99,7 @@ const LABEL: Record<string, Record<string, string>> = {
   goot: { zink: 'zink', pvc: 'PVC', bakgoot: 'bakgoot', weet_niet: 'weet niet' },
   start: { zo_snel_mogelijk: 'zo snel mogelijk', binnen_3_maanden: 'binnen drie maanden', dit_jaar: 'later dit jaar', orienterend: 'oriënteert zich nog' },
 }
-const VRAAG: [keyof typeof LABEL, string][] = [
+export const VRAAG: [keyof typeof LABEL, string][] = [
   ['start', 'Starten'], ['houtwerk', 'Houtwerk'], ['materiaal', 'Huidig materiaal'], ['bouwjaar', 'Bouwjaar'], ['isolatie', 'Isolatie nu'],
   ['zolder', 'Zolder'], ['woningtype', 'Woning'], ['goot', 'Dakgoot'],
 ]
