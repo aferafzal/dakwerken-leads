@@ -13,12 +13,30 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dakwerken-oostvlaander
 const NAVY = '#0f172a'
 const AMBER = '#f97316'
 
+/** Gewone-tekstversie uit de HTML. Een mail met enkel HTML scoort slechter bij spamfilters (o.a. Hostinger). */
+export function htmlNaarTekst(html: string): string {
+  return html
+    .replace(/<a [^>]*href="(?:mailto:|tel:)?([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href: string, tekst: string) => {
+      const t = tekst.replace(/<[^>]+>/g, '').trim()
+      return t === href || href.startsWith('#') ? t : `${t} (${href})`
+    })
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/td>\s*<td[^>]*>/gi, ': ')
+    .replace(/<\/(p|h[1-6]|tr|li|div|blockquote|table)>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '- ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .split('\n').map((r) => r.replace(/[ \t]+/g, ' ').trim()).filter(Boolean).join('\n')
+}
+
 /** Resend gooit geen fout bij een geweigerde mail: het antwoord bevat ze. Zonder deze controle faalt een mail stil. */
 async function verstuur(bericht: CreateEmailOptions, wat: string): Promise<boolean> {
   if (!process.env.RESEND_API_KEY) {
     console.warn(`[mail] RESEND_API_KEY ontbreekt: ${wat} niet verstuurd`)
     return false
   }
+  // Elke mail krijgt ook een tekstversie (de rapportmail heeft er al een eigen)
+  if (!bericht.text && typeof bericht.html === 'string') bericht = { ...bericht, text: htmlNaarTekst(bericht.html) } as CreateEmailOptions
   try {
     const { error } = await new Resend(process.env.RESEND_API_KEY).emails.send(bericht)
     if (error) {
