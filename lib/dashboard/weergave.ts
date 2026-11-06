@@ -147,33 +147,47 @@ export function wieVan(l: Lead): string {
 // ─── Wachttijd in werkuren (ma–vr, 8–18 u, Brussel) ────────────────────
 
 const WERK_BEGIN = 8, WERK_EINDE = 18
+const UUR = 3_600_000, DAG = 86_400_000
 
-function brusselUurEnDag(t: number): { uur: number; dag: number } {
-  const d = new Date(t)
-  const uur = Number(d.toLocaleString('en-GB', { timeZone: TZ, hour: '2-digit', hour12: false }))
-  const dag = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(d.toLocaleString('en-US', { timeZone: TZ, weekday: 'short' }))
-  return { uur, dag }
+// Eén formatter, hergebruikt: een nieuwe Intl-formatter per berekening is traag
+const brussel = new Intl.DateTimeFormat('en-GB', {
+  timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+})
+/** Het moment als "wandklok in Brussel", uitgedrukt in ms alsof het UTC was (zomer- en wintertijd inbegrepen) */
+function wandklok(t: number): number {
+  const p = Object.fromEntries(brussel.formatToParts(new Date(t)).map((x) => [x.type, x.value]))
+  return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second)
 }
 
-/** Aantal werkuren tussen twee momenten, per kwartier geteld (genoeg voor "wacht 3u") */
+/** Aantal werkuren (ma–vr, 8–18 u, Brussel) tussen twee momenten. Per dag gerekend, niet per kwartier. */
 export function werkurenTussen(van: string | number, tot: number = Date.now()): number {
-  let t = typeof van === 'string' ? new Date(van).getTime() : van
-  const stap = 15 * 60_000
-  let kwartieren = 0
+  const begin = typeof van === 'string' ? new Date(van).getTime() : van
   // Begrensd op 30 dagen: daarna is het toch "te lang"
-  const grens = Math.min(tot, t + 30 * 86_400_000)
-  while (t < grens) {
-    const { uur, dag } = brusselUurEnDag(t)
-    if (dag >= 1 && dag <= 5 && uur >= WERK_BEGIN && uur < WERK_EINDE) kwartieren++
-    t += stap
+  const einde = Math.min(tot, begin + 30 * DAG)
+  if (!(einde > begin)) return 0
+  const a = wandklok(begin), b = wandklok(einde)
+  let ms = 0
+  for (let dag = Math.floor(a / DAG) * DAG; dag < b; dag += DAG) {
+    const weekdag = new Date(dag).getUTCDay()
+    if (weekdag === 0 || weekdag === 6) continue
+    const van = Math.max(a, dag + WERK_BEGIN * UUR), totDag = Math.min(b, dag + WERK_EINDE * UUR)
+    if (totDag > van) ms += totDag - van
   }
-  return kwartieren / 4
+  return ms / UUR
 }
+
+// Per aanvraag één keer per minuut rekenen: het dashboard vraagt de wachttijd op verschillende plaatsen op
+const wachtCache = new Map<string, number | null>()
 
 /** Wacht deze aanvraag nog op een eerste reactie van ons? En hoe lang (werkuren)? */
 export function wachttijd(l: Lead): number | null {
   if (l.gearchiveerd_op || l.eerste_reactie_op || opvolgingVan(l) !== 'nieuw') return null
-  return werkurenTussen(l.created_at)
+  const sleutel = `${l.id}:${l.created_at}:${Math.floor(Date.now() / 60_000)}`
+  if (!wachtCache.has(sleutel)) {
+    if (wachtCache.size > 2000) wachtCache.clear()
+    wachtCache.set(sleutel, werkurenTussen(l.created_at))
+  }
+  return wachtCache.get(sleutel)!
 }
 
 export function wachtLabel(uren: number): string {
