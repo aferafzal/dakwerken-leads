@@ -2,7 +2,7 @@
 // Afer leest het na, past het aan en klikt op Versturen.
 //
 // De AI hangt af van de sleutel in de omgeving (eerste die er is):
-//   OPENAI_API_KEY → OpenAI (ChatGPT-modellen; OPENAI_MODEL, standaard gpt-5-mini)
+//   OPENAI_API_KEY → OpenAI (ChatGPT-modellen; OPENAI_MODEL, anders gpt-4.1-mini, gpt-4o-mini, gpt-4o)
 //   ANTHROPIC_API_KEY → Claude (ANTHROPIC_MODEL, standaard claude-sonnet-5-5)
 //   GEMINI_API_KEY → Gemini (GEMINI_MODEL, standaard gemini-2.5-flash)
 import Anthropic from '@anthropic-ai/sdk'
@@ -103,16 +103,27 @@ export async function maakConceptTekst(i: ConceptInvoer): Promise<Concept> {
   const vraag = opdrachtVoor(i)
 
   if (process.env.OPENAI_API_KEY) {
-    const model = process.env.OPENAI_MODEL ?? 'gpt-5-mini'
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-      body: JSON.stringify({ model, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: REGELS }, { role: 'user', content: vraag }] }),
-      signal: AbortSignal.timeout(45_000),
-    })
-    if (!res.ok) throw new Error(`OpenAI gaf ${res.status}`)
-    const d = await res.json() as { choices?: { message?: { content?: string } }[] }
-    return { ...leesJson(d.choices?.[0]?.message?.content ?? ''), bron: `OpenAI ${model}` }
+    // Niet elk account heeft elk model: bij "model niet gevonden" (404) het volgende proberen
+    const modellen = [...new Set([process.env.OPENAI_MODEL, 'gpt-4.1-mini', 'gpt-4o-mini', 'gpt-4o'].filter(Boolean) as string[])]
+    let laatste = ''
+    for (const model of modellen) {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        body: JSON.stringify({ model, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: REGELS }, { role: 'user', content: vraag }] }),
+        signal: AbortSignal.timeout(45_000),
+      })
+      if (res.ok) {
+        const d = await res.json() as { choices?: { message?: { content?: string } }[] }
+        return { ...leesJson(d.choices?.[0]?.message?.content ?? ''), bron: `OpenAI ${model}` }
+      }
+      // De foutboodschap van OpenAI (code en uitleg, nooit de sleutel) voor de logboeken
+      const fout = await res.json().catch(() => null) as { error?: { code?: string; type?: string; message?: string } } | null
+      laatste = `OpenAI gaf ${res.status} voor ${model}: ${fout?.error?.code ?? fout?.error?.type ?? ''} ${fout?.error?.message?.slice(0, 200) ?? ''}`
+      console.warn('[ai/concept]', laatste)
+      if (res.status !== 404) break
+    }
+    throw new Error(laatste)
   }
 
   if (process.env.ANTHROPIC_API_KEY) {
