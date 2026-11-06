@@ -1,5 +1,5 @@
 import { Resend, type CreateEmailOptions } from 'resend'
-import { BEDRIJF } from './bedrijf'
+import { AFZENDER, BEDRIJF } from './bedrijf'
 import { berekenPrijs, werkOmschrijving, type Antwoorden, type DakMaten } from './prijsmodel'
 
 // Eén afzender op het geverifieerde domein. RESEND_FROM_EMAIL staat enkel in productie;
@@ -267,4 +267,45 @@ export async function sendRapportEmail(lead: LeadInfo): Promise<boolean> {
       </div>
     </div>`,
   }, 'rapportmail')
+}
+
+// ─── Persoonlijke mail uit het dashboard ───────────────────────────────
+
+/** Handtekening zoals op de handtekeningpagina: tekst, kleuren van het merk, geen afbeeldingen */
+function handtekening(): { html: string; tekst: string } {
+  const tel = AFZENDER.telefoon.replace(/[^\d+]/g, '')
+  const html = `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;color:${NAVY};font-size:14px;line-height:1.45;margin-top:18px">` +
+    `<div style="font-size:16px;font-weight:700">${esc(AFZENDER.naam)}</div>` +
+    `<div style="color:#64748b;font-size:13px">${esc(AFZENDER.functie)}</div>` +
+    `<div style="margin-top:10px;font-size:15px;font-weight:800">Dakwerken <span style="color:#c2410c;font-weight:700">Oost-Vlaanderen</span></div>` +
+    `<div style="margin-top:8px"><span style="color:#c2410c;font-weight:700">T</span>&nbsp; <a href="tel:${esc(tel)}" style="color:${NAVY};text-decoration:none">${esc(AFZENDER.telefoon)}</a><br>` +
+    `<span style="color:#c2410c;font-weight:700">E</span>&nbsp; <a href="mailto:${BEDRIJF.email}" style="color:${NAVY};text-decoration:none">${BEDRIJF.email}</a><br>` +
+    `<span style="color:#c2410c;font-weight:700">W</span>&nbsp; <a href="${SITE}" style="color:${NAVY};text-decoration:none;font-weight:600">${SITE.replace(/^https?:\/\//, '')}</a></div>` +
+    `<div style="margin-top:12px;color:#94a3b8;font-size:11px;line-height:1.4">${BEDRIJF.handelsnaam} is een handelsnaam van ${BEDRIJF.naam}, ${BEDRIJF.straat}, ${BEDRIJF.postcodeGemeente} · ondernemingsnummer ${BEDRIJF.ondernemingsnummer}</div>` +
+    `</div>`
+  const tekst = [
+    '--', AFZENDER.naam, AFZENDER.functie, BEDRIJF.handelsnaam,
+    `T ${AFZENDER.telefoon}`, `E ${BEDRIJF.email}`, `W ${SITE.replace(/^https?:\/\//, '')}`,
+    `${BEDRIJF.handelsnaam} is een handelsnaam van ${BEDRIJF.naam}, ${BEDRIJF.straat}, ${BEDRIJF.postcodeGemeente} · ondernemingsnummer ${BEDRIJF.ondernemingsnummer}`,
+  ].join('\n')
+  return { html, tekst }
+}
+
+/**
+ * Een mail die Afer in het dashboard schreef (of een AI-concept dat hij nalas), vanaf info@.
+ * Een kopie (bcc) gaat naar info@, zodat elke mail ook in de mailbox staat. Antwoorden komen op info@ binnen.
+ */
+export async function sendKlantMail(m: { aan: string; onderwerp: string; tekst: string; kopie?: boolean }): Promise<boolean> {
+  const h = handtekening()
+  const alineas = m.tekst.trim().split(/\n{2,}/).map((a) =>
+    `<p style="margin:0 0 14px">${esc(a).replace(/\n/g, '<br>')}</p>`).join('')
+  return verstuur({
+    from: `${AFZENDER.naam} · ${BEDRIJF.handelsnaam} <${BEDRIJF.email}>`,
+    to: m.aan,
+    replyTo: BEDRIJF.email,
+    ...(m.kopie === false ? {} : { bcc: BEDRIJF.email }),
+    subject: m.onderwerp,
+    text: `${m.tekst.trim()}\n\n${h.tekst}`,
+    html: `<div style="font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:${NAVY};max-width:600px">${alineas}${h.html}</div>`,
+  }, 'klantmail')
 }

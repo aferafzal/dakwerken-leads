@@ -13,3 +13,10 @@ export const BEDRIJF = {
 } as const
 
 export const BEDRIJF_ADRES = `${BEDRIJF.straat}, ${BEDRIJF.postcodeGemeente}`
+
+// Wie de mails uit het dashboard ondertekent. De naam staat in de omgeving (MAIL_AFZENDER_NAAM), niet in de code.
+export const AFZENDER = {
+  naam:     process.env.MAIL_AFZENDER_NAAM ?? 'Afer',
+  functie:  process.env.MAIL_AFZENDER_FUNCTIE ?? 'Zaakvoerder',
+  telefoon: process.env.NEXT_PUBLIC_OWNER_PHONE ?? '+32 466 43 98 59',
+} as const

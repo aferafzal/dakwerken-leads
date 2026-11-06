@@ -7,7 +7,10 @@ import {
 } from 'lucide-react'
 import { isBeheerder } from '@/lib/beheer-auth'
 import { LABEL, VRAAG } from '@/lib/notifications'
-import { leesAanvraag, leesKlaar, leesTijdlijn } from '@/lib/dashboard/gegevens'
+import { isVoorbeeld, leesAanvraag, leesBerichten, leesKlaar, leesTijdlijn } from '@/lib/dashboard/gegevens'
+import { welkeAi } from '@/lib/ai/concept'
+import type { MailSoort } from '@/lib/ai/mailsoorten'
+import MailSchrijver from './MailSchrijver'
 import {
   BOUWJAAR_LABEL, coordVan, euro, herkomstVan, interesse, kaartLinks, opvolgingVan, oppervlakteVan, prijsVan, START_LABEL,
   telVan, wachtLabel, wachttijd, wanneer, werkenVan, wieVan, type TijdlijnRegel,
@@ -59,8 +62,14 @@ export default async function AanvraagPage({ params }: { params: Promise<{ id: s
   const { id } = await params
   if (!UUID.test(id)) notFound()
 
-  const [l, tijdlijn, { opvolgingKlaar, controlekamerKlaar }] = await Promise.all([leesAanvraag(id), leesTijdlijn(id), leesKlaar()])
+  const [l, tijdlijn, berichten, { opvolgingKlaar, controlekamerKlaar }] = await Promise.all([
+    leesAanvraag(id), leesTijdlijn(id), leesBerichten(id), leesKlaar(),
+  ])
   if (!l) notFound()
+  // Welke mail ligt voor de hand: eerste contact, offerte opvolgen, bedanking, anders een herinnering
+  const st = opvolgingVan(l)
+  const standaardSoort: MailSoort = !berichten.some((b) => b.richting === 'uit') && (st === 'nieuw' || st === 'gecontacteerd')
+    ? 'eerste_contact' : st === 'offerte' ? 'offerte_opvolgen' : st === 'gewonnen' ? 'bedanking' : 'herinnering'
 
   const wie = interesse(l)
   const prijs = prijsVan(l)
@@ -135,14 +144,37 @@ export default async function AanvraagPage({ params }: { params: Promise<{ id: s
 
           {/* ── Mail ── */}
           <section id="mail" aria-labelledby="mail-titel" className="scroll-mt-4 rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
-            <h2 id="mail-titel" className="font-semibold text-gray-900">Mail sturen</h2>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="mail-titel" className="font-semibold text-gray-900">Mail sturen</h2>
+              {mailto && <a href={mailto} className="text-sm font-semibold text-gray-700 underline underline-offset-2 hover:text-gray-900">Liever in je mailapp</a>}
+            </div>
             {l.email ? (
-              <>
-                <p className="mt-1 text-sm text-gray-600">Mail schrijven met een AI-concept komt hier in de volgende stap. Tot dan opent de knop je mailapp, vanaf info@.</p>
-                {mailto && <a href={mailto} className={`${knop} mt-3 inline-flex bg-navy text-white hover:brightness-125`}><Mail className="h-4 w-4" aria-hidden />Mail naar {l.email}</a>}
-              </>
+              controlekamerKlaar ? (
+                <div className="mt-3">
+                  <MailSchrijver id={l.id} aan={l.email} standaard={standaardSoort} ai={welkeAi()} voorbeeld={isVoorbeeld()} />
+                </div>
+              ) : <p className="mt-1 text-sm text-gray-600">Mail schrijven vanuit het dashboard werkt na migratie 021.</p>
             ) : <p className="mt-1 text-sm text-gray-600">Geen e-mailadres bij deze aanvraag.</p>}
           </section>
+
+          {berichten.length > 0 && (
+            <section aria-labelledby="verstuurd-titel" className="rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
+              <h2 id="verstuurd-titel" className="font-semibold text-gray-900">Verstuurde mails <span className="font-normal text-gray-500">{berichten.length}</span></h2>
+              <ul className="mt-3 space-y-2">
+                {berichten.map((b) => (
+                  <li key={b.id}>
+                    <details className="group rounded-lg border border-gray-200">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm">
+                        <span className="min-w-0 truncate font-medium text-gray-900">{b.onderwerp ?? '(geen onderwerp)'}</span>
+                        <span className="shrink-0 text-xs text-gray-600">{b.verstuurd_door === 'ai' ? 'AI-concept · ' : ''}{wanneer(b.created_at)}</span>
+                      </summary>
+                      <p className="whitespace-pre-line border-t border-gray-100 px-3 py-3 text-sm leading-relaxed text-gray-800">{b.inhoud}</p>
+                    </details>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
 
         {/* ── Rechts: opvolging en tijdlijn ── */}
