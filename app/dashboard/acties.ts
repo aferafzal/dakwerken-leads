@@ -7,7 +7,7 @@ import { isOpvolging, OPVOLGING } from '@/lib/opvolging'
 import {
   bewaarBericht, isVoorbeeld, leesAanvraag, leesBerichten, voegTijdlijnToe, wijzigAanvragen, wisAanvragen, zetEersteReactie,
 } from '@/lib/dashboard/gegevens'
-import { opvolgingVan, oppervlakteVan, prijsVan, START_LABEL, voornaamVan, VOLGENDE_ACTIES, werkenVan } from '@/lib/dashboard/weergave'
+import { opvolgingVan, oppervlakteVan, prijsVan, START_LABEL, voornaamUitEmail, voornaamVan, VOLGENDE_ACTIES, werkenVan } from '@/lib/dashboard/weergave'
 import { isMailSoort, maakConceptTekst, MAIL_SOORTEN, welkeAi } from '@/lib/ai/concept'
 import { sendKlantMail } from '@/lib/notifications'
 import { AFZENDER } from '@/lib/bedrijf'
@@ -164,6 +164,7 @@ export async function maakConcept(id: unknown, soort: unknown, instructie: unkno
       telefoon: AFZENDER.telefoon,
       klant: {
         voornaam: voornaamVan(l),
+        voornaamUitEmail: voornaamUitEmail(l.email),
         gemeente: l.gemeente,
         adres: l.adres,
         werken: werkenVan(l),

@@ -18,6 +18,7 @@ export type ConceptInvoer = {
   telefoon: string                 // gsm van het bedrijf
   klant: {
     voornaam: string | null
+    voornaamUitEmail: string | null   // vermoedelijke voornaam uit het e-mailadres (bv. jan.peeters@ → Jan)
     gemeente: string | null
     adres: string | null
     werken: string[]
@@ -42,7 +43,7 @@ Schrijf zoals een Vlaamse vakman die vriendelijk en duidelijk is:
 - Nederlands zoals in Vlaanderen, met "u". Geen Nederlandse uitdrukkingen ("hartelijk dank voor uw mail" mag, "fijn weekend" mag; geen "hoi", geen "groetjes").
 - Kort: 60 tot 140 woorden. Korte zinnen. Geen opsommingstekens, geen vetjes, geen emoji.
 - Eén duidelijke vraag of volgende stap aan het einde.
-- Spreek de klant aan met "Beste [voornaam]," als die bekend is, anders "Beste,".
+- Spreek de klant persoonlijk aan met "Beste [voornaam],". Is er geen opgegeven voornaam maar wel een voornaam uit het e-mailadres, gebruik die dan, maar alleen als het duidelijk een gewone voornaam is (Jan, Els, Mohamed, Sofie). Twijfel je (een bijnaam, een afkorting, een bedrijfsnaam), schrijf dan "Beste,". Gebruik nooit een achternaam of het e-mailadres zelf.
 - Sluit af met "Met vriendelijke groeten," en op de volgende regel alleen de voornaam van de afzender. Geen handtekening, geen telefoonnummer of adres eronder: die komen er automatisch bij.
 
 Strikte regels (nooit overtreden):
@@ -60,7 +61,7 @@ function opdrachtVoor(i: ConceptInvoer): string {
   const s = MAIL_SOORTEN.find((m) => m.sleutel === i.soort)!
   const k = i.klant
   const feiten = [
-    `Voornaam klant: ${k.voornaam ?? '(onbekend)'}`,
+    k.voornaam ? `Voornaam klant (zelf opgegeven): ${k.voornaam}` : k.voornaamUitEmail ? `Voornaam klant: niet opgegeven; uit het e-mailadres afgeleid: ${k.voornaamUitEmail}` : 'Voornaam klant: onbekend',
     k.adres || k.gemeente ? `Woning: ${[k.adres, k.gemeente].filter(Boolean).join(', ')}` : null,
     k.werken.length ? `Wil laten doen: ${k.werken.join(', ')}` : null,
     k.oppervlakte ? `Dakoppervlakte volgens de meting: ongeveer ${Math.round(k.oppervlakte)} m²` : null,

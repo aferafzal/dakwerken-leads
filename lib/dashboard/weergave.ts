@@ -139,6 +139,37 @@ export function voornaamVan(l: Lead): string | null {
   return n ? n.split(/\s+/)[0] : null
 }
 
+// Woorden in e-mailadressen die geen voornaam zijn
+const GEEN_VOORNAAM = new Set([
+  'info', 'contact', 'mail', 'email', 'admin', 'office', 'kantoor', 'hallo', 'hello', 'hi', 'post', 'sales', 'verkoop',
+  'familie', 'fam', 'gezin', 'thuis', 'home', 'privé', 'prive', 'de', 'van', 'der', 'den', 'het', 'the', 'mr', 'mevr', 'dhr',
+  'bv', 'bvba', 'nv', 'vof', 'comm', 'commv', 'dakwerken', 'bouw', 'renovatie', 'test', 'noreply', 'no', 'reply', 'support',
+  'boekhouding', 'facturatie', 'factuur', 'administratie', 'secretariaat', 'werk', 'mijn', 'ons', 'onze',
+])
+
+/**
+ * Een vermoedelijke voornaam uit het e-mailadres, bv. "jan.peeters@…" → "Jan".
+ * Enkel als het eerste stuk duidelijk een los woord is (gescheiden door . _ of -) van 2 tot 14 letters.
+ * "janpeeters@…" of "info@…" geven niets: dan liever "Beste," dan een verkeerde naam.
+ */
+export function voornaamUitEmail(email: string | null | undefined): string | null {
+  const lokaal = email?.split('@')[0]?.toLowerCase().trim()
+  if (!lokaal) return null
+  const hoofdletter = (w: string) => w.charAt(0).toUpperCase() + w.slice(1)
+  const goed = (w: string | undefined): w is string => !!w && /^[a-zà-ÿ]{2,14}$/.test(w) && !GEEN_VOORNAAM.has(w)
+  const stukken = lokaal.split(/[._]+/).filter(Boolean)
+  // "jan-peeters@…": één stuk met een koppelteken → het eerste deel
+  if (stukken.length === 1) {
+    const [a, b] = stukken[0].split('-')
+    return b && goed(a) ? hoofdletter(a) : null
+  }
+  // "anne-marie.claes@…" is een dubbele voornaam; "mohamed-el.amrani@…" niet ("el" is een partikel)
+  const [a, b, ...rest] = stukken[0].split('-')
+  if (!goed(a)) return null
+  if (b && rest.length === 0 && b.length >= 3 && goed(b)) return `${hoofdletter(a)}-${hoofdletter(b)}`
+  return hoofdletter(a)
+}
+
 /** Weergavenaam in lijsten: naam, anders het e-mailadres, anders het adres */
 export function wieVan(l: Lead): string {
   return l.naam?.trim() || l.email || l.adres || 'Onbekende aanvrager'
